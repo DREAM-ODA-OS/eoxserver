@@ -97,8 +97,9 @@ class Command(CommandOutputMixIn, BaseCommand):
         ),
         make_option("-s", "--semantic", dest="semantics",
             action="callback", callback=_variable_args_cb, default=None,
-            help=("Optional. If given, one semantic must be present for each "
-                 "'--data' option.")
+            help=("Optional band semantics. If given, one semantic band "
+                  "semantics 'band[*]' must be present for each '--data' "
+                  " item.")
         ),
         make_option("-m", "--meta-data", dest="metadata", 
             action="callback", callback=_variable_args_cb_list, default=[],
@@ -155,6 +156,11 @@ class Command(CommandOutputMixIn, BaseCommand):
                   " does not exist. By defualt, a missing parent " 
                   "will terminate the command." )
         ),
+
+        make_option("--clouds", dest="pm_clouds",
+            action="store", default=None,
+            help=("Optional clouds' polygon mask.")
+        ),
     )
 
     @transaction.commit_on_success
@@ -173,6 +179,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         semantics = kwargs.get("semantics")
         metadatas = kwargs["metadata"]
         range_type_name = kwargs["range_type_name"]
+        polygon_mask_clouds = kwargs["pm_clouds"]
 
         if range_type_name is None:
             raise CommandError("No range type name specified.")
@@ -237,7 +244,40 @@ class Command(CommandOutputMixIn, BaseCommand):
                     for key, value in values.items():
                         if key in metadata_keys:
                             retrieved_metadata.setdefault(key, value)
+        #----------------------------------------------------------------------
+        # other semantics
 
+        if polygon_mask_clouds is not None : 
+
+            #storage, package, format, location = self._get_location_chain(polygon_mask_clouds)
+            storage, package, format, location = None, None, None, polygon_mask_clouds
+            data_item = backends.DataItem(
+                location=location, format=format or "", semantic="polygonmask[clouds]", 
+                storage=storage, package=package,
+            )
+            data_item.full_clean()
+            data_item.save()
+            all_data_items.append(data_item)
+
+#            with open(connect(data_item, cache)) as f:
+#                content = f.read()
+#                reader = metadata_component.get_reader_by_test(content)
+#                if reader:
+#                    values = reader.read(content)
+#
+#                    format = values.pop("format", None)
+#                    if format:
+#                        data_item.format = format
+#                        data_item.full_clean()
+#                        data_item.save()
+#
+#                    for key, value in values.items():
+#                        if key in metadata_keys:
+#                            retrieved_metadata.setdefault(key, value)
+            
+
+        #----------------------------------------------------------------------
+        # meta-data
 
         if len(datas) < 1:
             raise CommandError("No data files specified.")
