@@ -97,14 +97,9 @@ class Command(CommandOutputMixIn, BaseCommand):
         ),
         make_option("-s", "--semantic", dest="semantics",
             action="callback", callback=_variable_args_cb, default=None,
-<<<<<<< HEAD
-            help=("Optional band semantics. If given, one semantic band "
+            help=("Optional band semantics. If given, one band "
                   "semantics 'band[*]' must be present for each '--data' "
                   " item.")
-=======
-            help=("Optional. If given, one semantic must be present for each "
-                 "'--data' option.")
->>>>>>> upstream/master
         ),
         make_option("-m", "--meta-data", dest="metadata", 
             action="callback", callback=_variable_args_cb_list, default=[],
@@ -161,14 +156,11 @@ class Command(CommandOutputMixIn, BaseCommand):
                   " does not exist. By defualt, a missing parent " 
                   "will terminate the command." )
         ),
-<<<<<<< HEAD
 
         make_option("--clouds", dest="pm_clouds",
             action="store", default=None,
             help=("Optional clouds' polygon mask.")
         ),
-=======
->>>>>>> upstream/master
     )
 
     @transaction.commit_on_success
@@ -187,10 +179,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         semantics = kwargs.get("semantics")
         metadatas = kwargs["metadata"]
         range_type_name = kwargs["range_type_name"]
-<<<<<<< HEAD
         polygon_mask_clouds = kwargs["pm_clouds"]
-=======
->>>>>>> upstream/master
 
         if range_type_name is None:
             raise CommandError("No range type name specified.")
@@ -255,7 +244,7 @@ class Command(CommandOutputMixIn, BaseCommand):
                     for key, value in values.items():
                         if key in metadata_keys:
                             retrieved_metadata.setdefault(key, value)
-<<<<<<< HEAD
+
         #----------------------------------------------------------------------
         # other semantics
 
@@ -290,9 +279,6 @@ class Command(CommandOutputMixIn, BaseCommand):
 
         #----------------------------------------------------------------------
         # meta-data
-=======
-
->>>>>>> upstream/master
 
         if len(datas) < 1:
             raise CommandError("No data files specified.")
