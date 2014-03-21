@@ -27,6 +27,7 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
+import django
 from django.core.exceptions import ValidationError
 from django.contrib.gis import forms
 from django.contrib.gis import admin
@@ -35,6 +36,7 @@ from django.contrib import messages
 from eoxserver.contrib import gdal
 from eoxserver.resources.coverages import models
 from eoxserver.backends.admin import LocationForm
+
 
 
 #===============================================================================
@@ -127,6 +129,25 @@ class EOObjectAdmin(admin.GeoModelAdmin):
     default_lon = 16
     default_lat = 48
 
+    # Django 1.4 backward compatibility  
+    def message_user( self, request, message, level=messages.INFO,
+                        extra_tags='', fail_silently=False): 
+
+        if django.VERSION < (1,5) : 
+
+            if  level == messages.INFO : 
+                admin.GeoModelAdmin.message_user( self, request, message )
+            else : 
+                # TODO: fix handling of the non-INFO message levels 
+                # NOTE: for purpose of debuging left to fail 
+                admin.GeoModelAdmin.message_user( self, request, message,
+                        level, extra_tags, fail_silently ) 
+
+        else : 
+
+            admin.GeoModelAdmin.message_user( self, request, message,
+                    level, extra_tags, fail_silently ) 
+ 
 
 class CoverageAdmin(EOObjectAdmin):
 
@@ -160,14 +181,14 @@ class CollectionAdmin(EOObjectAdmin):
             )
         except ValidationError, e:
             for m in e.messages:
-                self.message_user(request, str(m), messages.ERROR)
+                self.message_user(request, str(m), level=messages.ERROR)
 
 
     def synchronize(self, request, queryset):
         for model in queryset:
             self.message_user(
                 request, "Successfully fake-synchronized %s." % str(model),
-                messages.INFO
+                level=messages.INFO
             )
     
     synchronize.short_description = "Synchronizes the collections with its data sources."
@@ -223,7 +244,16 @@ class DataItemInline(AbstractInline):
     model = models.backends.DataItem
 
 
-#===============================================================================
+class VectorMaskInline(AbstractInline):
+    model = getattr(models.VectorMask.coverages, "through")
+    #fk_name = "vectormask"
+
+
+class VectorMaskCoverageInline(AbstractInline):
+    model = getattr(models.VectorMask.coverages, "through")
+    #fk_name = "coverage"
+
+
 # Model admins
 #===============================================================================
 
@@ -252,27 +282,27 @@ admin.site.register(models.RangeType, RangeTypeAdmin)
 
 class RectifiedDatasetAdmin(CoverageAdmin):
     model = models.RectifiedDataset
-    inlines = (DataItemInline, CollectionInline)
+    inlines = (VectorMaskInline, DataItemInline, CollectionInline)
 
 admin.site.register(models.RectifiedDataset, RectifiedDatasetAdmin)
 
 
 class ReferenceableDatasetAdmin(CoverageAdmin):
     model = models.ReferenceableDataset
-    inlines = (DataItemInline, CollectionInline)
+    inlines = (VectorMaskInline, DataItemInline, CollectionInline)
 
 admin.site.register(models.ReferenceableDataset, ReferenceableDatasetAdmin)
 
 
 class RectifiedStitchedMosaicAdmin(CoverageAdmin, CollectionAdmin):
     model = models.RectifiedStitchedMosaic
-    inlines = (DataItemInline, CollectionInline, EOObjectInline)
+    inlines = (VectorMaskInline, DataItemInline, CollectionInline, EOObjectInline)
 
     def restitch(self, request, queryset):
         for model in queryset:
             self.message_user(
                 request, "Successfully fake-stitched %s." % str(model),
-                messages.INFO
+                level=messages.INFO
             )
     
     restitch.short_description = "Restitch the rectified stitched mosaic."
@@ -297,3 +327,13 @@ class DatasetSeriesAdmin(CollectionAdmin):
     inlines = (DataSourceInline, EOObjectInline, CollectionInline)
 
 admin.site.register(models.DatasetSeries, DatasetSeriesAdmin)
+
+
+class VectorMaskAdmin(EOObjectAdmin): 
+    model = models.VectorMask 
+
+    fields = ('name',('type','subtype'),('srid','projection'),'geometry') 
+
+    inlines = ( VectorMaskCoverageInline, )
+
+admin.site.register(models.VectorMask, VectorMaskAdmin)

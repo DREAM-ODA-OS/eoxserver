@@ -37,7 +37,7 @@ from eoxserver.services.ows.common.config import CapabilitiesConfigReader
 from eoxserver.services.ows.wms.interfaces import (
     WMSCapabilitiesRendererInterface
 )
-from eoxserver.services.mapserver.interfaces import LayerFactoryInterface
+from eoxserver.services.mapserver.interfaces import LayerPluginInterface
 from eoxserver.services.result import result_set_from_raw_data, get_content_type
 
 
@@ -46,13 +46,11 @@ class MapServerWMSCapabilitiesRenderer(Component):
     """
     implements(WMSCapabilitiesRendererInterface)
 
-    layer_factories = ExtensionPoint(LayerFactoryInterface)
+    layer_plugins = ExtensionPoint(LayerPluginInterface)
 
     @property
     def suffixes(self):
-        return list(
-            chain(*[factory.suffixes for factory in self.layer_factories])
-        )
+        return list( chain( *((f.suffixes for f in self.layer_plugins)) ) )
 
 
     def render(self, collections, coverages, request_values):
@@ -126,8 +124,7 @@ class MapServerWMSCapabilitiesRenderer(Component):
                     "extent": " ".join(map(str, extent)),
                 }, namespace="wms")
 
-                minx, miny, maxx, maxy = extent
-                group_layer.setExtent(minx, miny, maxx, maxy)
+                group_layer.setExtent(*extent)
 
                 # add default style
                 default_class = Class("default")
@@ -155,7 +152,7 @@ class MapServerWMSCapabilitiesRenderer(Component):
 
         for coverage in coverages:
             extent = coverage.extent_wgs84
-            minx, miny, maxx, maxy = extent
+
             # save overall map extent
             map_extent = self.join_extents(map_extent, extent)
 
@@ -166,8 +163,8 @@ class MapServerWMSCapabilitiesRenderer(Component):
                 "abstract": layer_name,
                 "extent": " ".join(map(str, extent)),
             }, namespace="wms")
-            minx, miny, maxx, maxy = extent
-            layer.setExtent(minx, miny, maxx, maxy)
+
+            layer.setExtent(*extent)
 
             map_.insertLayer(layer)
 
@@ -176,12 +173,12 @@ class MapServerWMSCapabilitiesRenderer(Component):
         if map_extent is None : 
             map_extent = ( 0.0, 0.0, 1.0, 1.0 )
 
-        map_minx, map_miny, map_maxx, map_maxy = map_extent
-        map_.setExtent(map_minx, map_miny, map_maxx, map_maxy)
+        map_.setExtent( *map_extent ) 
 
         request = create_request(request_values)
         raw_result = map_.dispatch(request)
         result = result_set_from_raw_data(raw_result)
+
         return result, get_content_type(result)
 
     def get_wms_formats(self):
