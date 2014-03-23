@@ -249,7 +249,7 @@ class MetadataItemInline(AbstractInline):
 
 
 # TODO: fix to display inline map widget.
-class VectorMaskInline(admin.StackedInline)
+class VectorMaskInline(admin.StackedInline):
     extra = 0 
     model = models.VectorMask
     fields = (('type','subtype'),'geometry') 
