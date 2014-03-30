@@ -106,7 +106,7 @@ def lookup_layers(layers, subsets, suffixes=None):
                     collections__in=[collection.pk]
                 ).exclude(
                     pk__in=used_ids
-                ).order_by("begin_time", "end_time")
+                ).order_by("begin_time", "end_time", "identifier")
                 # apply subsets
                 eo_objects = subsets.filter(eo_objects)
 
