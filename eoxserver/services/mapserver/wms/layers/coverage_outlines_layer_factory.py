@@ -25,6 +25,8 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
+import logging ; logger = logging.getLogger(__name__)
+
 from django.contrib.gis.geos.collections import MultiPolygon
 
 from eoxserver.contrib import mapserver as ms
@@ -52,12 +54,14 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
             d_groups[group] = layer 
             yield layer, None, () 
 
+        # initialize accumulator to an empty geometry
+        accum = MultiPolygon([])
 
         # iterate over the coverages and add features to the layer groups 
         for cov, group, cols in reversed( self.coverages ) : 
 
             # get part of the visible footprint 
-            outline = self._outline_geom( cov ) 
+            outline = self._outline_geom( cov ) - accum 
 
             # skip completly covered outlines 
             if outline.empty : continue 
@@ -69,3 +73,5 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
 
             # add feature to the group
             d_groups[group].addFeature(shape)
+
+            accum = outline | accum
