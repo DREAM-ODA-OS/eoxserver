@@ -45,14 +45,7 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
 
     def generate(self): 
 
-        # keep the layer objects 
-        d_groups = {} 
-
-        # create the group layers 
-        for group in self.groups : 
-            layer = self._polygon_layer(group,filled=False,srid=4326)
-            d_groups[group] = layer 
-            yield layer, None, () 
+        layer = self._polygon_layer( self.group, filled=False,srid=4326)
 
         # initialize accumulator to an empty geometry
         accum = MultiPolygon([])
@@ -63,15 +56,17 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
             # get part of the visible footprint 
             outline = self._outline_geom( cov ) - accum 
 
-            # skip completly covered outlines 
+            # skip invisible outlines 
             if outline.empty : continue 
 
             # generate feature 
             shape = ms.shapeObj.fromWKT(outline.wkt)
             shape.initValues(1)
-            shape.setValue(0, cov.identifier)
+            shape.setValue(0, cov_name )
 
             # add feature to the group
-            d_groups[group].addFeature(shape)
+            layer.addFeature(shape)
 
             accum = outline | accum
+
+        yield layer, None, () 

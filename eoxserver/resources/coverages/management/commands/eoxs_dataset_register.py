@@ -169,6 +169,17 @@ class Command(CommandOutputMixIn, BaseCommand):
             action="store", default=None,
             help=("Optional snow polygon mask.")
         ),
+
+        make_option("--view", dest="md_wms_view",
+            action="store", default=None,
+            help=("Optional link WMS view to another EO-ID (layer).")
+        ),
+
+        make_option("--alias", dest="md_wms_alias",
+            action="store", default=None,
+            help=("Optional EO-ID (layer) of another dataset"
+                  "the registered coverage provides view to.")
+        ),
     )
 
     @transaction.commit_on_success
@@ -189,6 +200,8 @@ class Command(CommandOutputMixIn, BaseCommand):
         range_type_name = kwargs["range_type_name"]
         polygon_mask_cloud = kwargs["pm_cloud"]
         polygon_mask_snow = kwargs["pm_snow"]
+        wms_view  = kwargs["md_wms_view"]
+        wms_alias = kwargs["md_wms_alias"]
 
         if range_type_name is None:
             raise CommandError("No range type name specified.")
@@ -319,6 +332,23 @@ class Command(CommandOutputMixIn, BaseCommand):
         #----------------------------------------------------------------------
         # meta-data
 
+        metadata_items = []
+
+        # prerendered WMS view 
+        if wms_view is not None : 
+            metadata_items.append(
+                models.MetadataItem(semantic="wms_view",value=wms_view)
+            ) 
+                
+        # alias of the WMS view 
+        if wms_alias is not None : 
+            metadata_items.append(
+                models.MetadataItem(semantic="wms_alias",value=wms_alias)
+            ) 
+
+        #----------------------------------------------------------------------
+        # coverage 
+
         if len(datas) < 1:
             raise CommandError("No data files specified.")
 
@@ -408,6 +438,11 @@ class Command(CommandOutputMixIn, BaseCommand):
                 vm.coverage = coverage 
                 vm.full_clean()
                 vm.save()
+
+            for md in metadata_items : 
+                md.eo_object = coverage
+                md.full_clean()
+                md.save()
 
             #------------------------------------------------------------------
             # link to the parent dataset 
