@@ -33,11 +33,13 @@ from eoxserver.core import Component, implements
 from eoxserver.services.ows.wps.interfaces import ProcessInterface
 from eoxserver.services.ows.wps.parameters import LiteralData, ComplexData
 
-
-class TestProcess(Component):
-    """ Simple test process. """ 
-
-    implements(ProcessInterface)
+# MP: Loading of the process component deliberately disabled.
+#
+#class TestProcess(Component):
+#    """ Simple test process. """ 
+#
+#    implements(ProcessInterface)
+class TestProcess(object):
 
     identifier = "id"
     title = "title"
