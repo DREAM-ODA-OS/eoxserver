@@ -25,7 +25,7 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-import logging ; logger = logging.getLogger(__name__)
+import logging ;
 
 from django.contrib.gis.geos.collections import MultiPolygon
 
@@ -34,6 +34,8 @@ from eoxserver.contrib import mapserver as ms
 from eoxserver.services.mapserver.wms.layers.base import (
     LayerFactory, StyledLayerMixIn, PolygonLayerMixIn,
 )
+
+logger = logging.getLogger(__name__)
 
 #-------------------------------------------------------------------------------
 
@@ -51,7 +53,7 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
         accum = MultiPolygon([])
 
         # iterate over the coverages and add features to the layer groups 
-        for cov, group, cols in reversed( self.coverages ) : 
+        for cov, cov_name in reversed( self.coverages ) : 
 
             # get part of the visible footprint 
             outline = self._outline_geom( cov ) - accum 
