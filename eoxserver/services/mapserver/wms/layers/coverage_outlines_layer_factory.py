@@ -25,8 +25,6 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-import logging ;
-
 from django.contrib.gis.geos.collections import MultiPolygon
 
 from eoxserver.contrib import mapserver as ms
@@ -34,8 +32,6 @@ from eoxserver.contrib import mapserver as ms
 from eoxserver.services.mapserver.wms.layers.base import (
     LayerFactory, StyledLayerMixIn, PolygonLayerMixIn,
 )
-
-logger = logging.getLogger(__name__)
 
 #-------------------------------------------------------------------------------
 
