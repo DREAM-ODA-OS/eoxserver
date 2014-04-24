@@ -92,6 +92,7 @@ class PathItem(models.Model):
     owner = models.ForeignKey(TrackedObject,related_name="paths")
 
     class Meta:
+        unique_together = ( 'path' , 'owner' ) 
         verbose_name = "Path Item"
         verbose_name_plural = "Path Items"
 

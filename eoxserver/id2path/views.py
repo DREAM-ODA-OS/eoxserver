@@ -34,7 +34,16 @@ from eoxserver.id2path import models
 from eoxserver.id2path.view_utils import ( HttpError, error_handler, 
     method_allow, ip_allow, ip_deny ) 
 
-import json 
+# try the python default json module 
+try : import json 
+except ImportError: 
+    #try the original simplejson module
+    try: import simplejson as json
+    except ImportError: 
+        #try the simplejson module packed in django
+        try: import django.utils.simplejson as json 
+        except ImportError: 
+            raise ImportError( "Failed to import any usable json module!" ) 
 
 #-------------------------------------------------------------------------------
 
