@@ -44,8 +44,6 @@ class TrackedObject(models.Model):
 
     identifier = models.CharField(max_length=256,unique=True,db_index=True)
 
-    #paths = models.ManyToManyField(FileItem,related_name='objects')
-
     def __unicode__(self): 
         return self.identifier 
 

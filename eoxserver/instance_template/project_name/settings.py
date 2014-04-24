@@ -70,6 +70,12 @@ SPATIALITE_SQL = join(PROJECT_DIR, 'data/init_spatialite-2.3.sql')
 # See https://docs.djangoproject.com/en/1.5/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = []
 
+# id2path restricted access: 
+#  - step 1 - all IPs matching the DENY list are rejected
+#  - step 2 - all IPs not matching the ALLOW list are rejected 
+ID2PATH_DENY_FROM = [] 
+ID2PATH_ALLOW_FROM = [ '127.0.0.1' , '::1' ] 
+
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.

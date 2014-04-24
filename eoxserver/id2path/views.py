@@ -27,98 +27,43 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
+from django.conf import settings
 from django.http import HttpResponse
 
 from eoxserver.id2path import models 
+from eoxserver.id2path.view_utils import ( HttpError, error_handler, 
+    method_allow, ip_allow, ip_deny ) 
 
 import json 
-import ipaddr
 
+#-------------------------------------------------------------------------------
+
+# type-code to string conversion
 TYPE2STR = dict( models.PathItem.TYPE_CHOICES ) 
 
+# type-string to code conversion 
+STR2TYPE = dict( (b,a) for (a,b) in models.PathItem.TYPE_CHOICES ) 
+
+# JSON formating options 
 #opts={}
 opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') } 
 
-
-class HttpError(Exception):
-    """ Simple HTTP error exception """
-    
-    def __init__( self , status , message ) : 
-        self.status = status 
-        self.message = message 
-
-    def __unicode__( self ): 
-        return "%d %s"%( self.status , self.message ) 
-
 #-------------------------------------------------------------------------------
 
-def error_handler( view ):
-    """ error handling decorator """ 
-
-    def _wrapper_( request ): 
-
-        try: 
-
-            return view( request ) 
-        
-        except HttpError as e : 
-            response =  HttpResponse(unicode(e),content_type="text/plain")
-            response.status_code = e.status 
-            return response 
-
-    _wrapper_.__name__ = view.__name__ 
-    _wrapper_.__doc__ = view.__doc__ 
-
-    return _wrapper_
-
-
-def ip_white_list( ip_list ):
-    """ IP white-list restricted access """ 
-
-    def _wrap_( view ) : 
-        def _wrapper_( request ): 
-
-            # request source address 
-            ip_src = ipaddr.IPAddress( request.META['REMOTE_ADDR'] ) 
-
-            # loop over the allowed addresses
-            for ip in ip_list : 
-                if ip_src in ipaddr.IPNetwork( ip ) : 
-                    break 
-            else :
-                raise HttpError( 403, "Forbiden!" ) 
-
-            return view( request ) 
-            
-        _wrapper_.__name__ = view.__name__ 
-        _wrapper_.__doc__ = view.__doc__ 
-
-        return _wrapper_
-    return _wrap_ 
-#-------------------------------------------------------------------------------
-
-# todo move into the configuration 
-ip_list = [ '0.0.0.0/0' , '127.0.0.1' ]
-
-@error_handler
-@ip_white_list( ip_list ) 
+@error_handler                              # top error handler 
+@ip_deny( settings.ID2PATH_DENY_FROM )      # IP access black-list
+@ip_allow( settings.ID2PATH_ALLOW_FROM )    # IP access white-list
+@method_allow( ['GET'] )                    # HTTP method filter 
 def id2path( request ): 
     """ id2path view handler """ 
     
-    keys = ( "id" , "filter" ) 
-
-    #--------------------------------------------------------------------------
-    # check the method
-    if request.method != 'GET' : 
-        raise HttpError( 405 , "Error: Method not supported!"
-                                            " METHOD='%s'"%request.method ) 
-
     #--------------------------------------------------------------------------
     # check the query string 
+    allowed_keys = ( "id" , "filter" ) 
     inputs = [] 
     for key,values in request.GET.lists() : 
         key = key.lower()
-        if key.lower() not in keys : 
+        if key.lower() not in allowed_keys: 
             raise HttpError( 400, "Error: Bad request! Invalid key!"
                                                         " KEY='%s'"%key ) 
         if len(values) > 1 : 
@@ -131,40 +76,39 @@ def id2path( request ):
     #--------------------------------------------------------------------------
     # check the inputs 
 
+    # get the object identifier 
     identifier = inputs.get("id",None) 
-    filters    = inputs.get("filter",None) 
 
     # print service signature if no input provided 
-
     if ( identifier is None ) and ( filters is None ) : 
         r = { "service":"id2path" , "version" : "1.0" } 
         return HttpResponse( json.dumps( r , **opts ),
                                           content_type="application/json" )
 
     # find the tracked object matching the input identifier
-
     try: 
-
         obj = models.TrackedObject.objects.get( identifier = identifier )
-
     except models.TrackedObject.DoesNotExist : 
-
         raise HttpError( 404, "Error: Record not found! Invalid"
                                 " identifier! IDENTIFIER='%s'"%identifier ) 
 
     # check the filters 
-        
-    filters    = filters.split(',') if ( filters is not None ) else [] 
+    filters    = inputs.get("filter",None) 
+    filters = filters.split(',') if ( filters is not None ) else [] 
 
-    for f in filters : 
-        if f not in models.PathItem.TYPE_STRINGS : 
-            raise HttpError( 400, "Error: Bad request! Invalid filter!"
-                                                        " FILTER='%s'"%f )
+    print filters 
+    try: 
+        types = map( lambda s : STR2TYPE[s] , filters ) 
+    except KeyError : 
+        raise HttpError( 400, "Error: Bad request! Invalid filter!" )
 
     #--------------------------------------------------------------------------
     # filter the records 
 
     paths = obj.paths.all() 
+
+    if types : 
+        paths = paths.filter( type__in = types )   
 
     #--------------------------------------------------------------------------
     # pack the response 
