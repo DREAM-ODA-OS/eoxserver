@@ -41,9 +41,6 @@ from eoxserver.id2path.models import TrackedObject as TO
 from eoxserver.id2path.models import PathItem as PI 
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
-# type-string to code conversion 
-STR2TYPE = dict( (b,a) for (a,b) in PI.TYPE_CHOICES ) 
-
 #------------------------------------------------------------------------------
 
 class Command(CommandOutputMixIn, BaseCommand):
@@ -80,8 +77,9 @@ class Command(CommandOutputMixIn, BaseCommand):
     The labels are optional and can be omitted. The types can have one of the
     following values: 
       %s
-    """ % ( "|".join( STR2TYPE.keys() ) )
+    """ % ( "|".join( PI.TYPE_STRINGS ) ) 
     )
+
     #--------------------------------------------------------------------------
 
 
@@ -131,25 +129,31 @@ class Command(CommandOutputMixIn, BaseCommand):
 
                 #create the path item 
                 with transaction.commit_on_success(): 
-                    pitm = tobj.paths.create( owner=tobj, path=path, 
-                                                    type=ptype, label=label ) 
+                    pitm = PI.objects.create( path=path, type=ptype,
+                                                                label=label ) 
+                    pitm.owners.add( tobj ) 
 
             except IntegrityError : 
 
                 #update the path item 
                 with transaction.commit_on_success(): 
-                    pitm = tobj.paths.filter( path=path ).update( 
-                                                    type=ptype, label=label ) 
+                    pitm = PI.objects.get( path=path )
+                    pitm.type=ptype
+                    pitm.label=label
+                    pitm.save()
+                    pitm.owners.add( tobj ) 
 
                 self.pi_update += 1 
                 self.print_msg( "An existing path item updated. ID='%s' PATH="
-                    "'%s' TYPE=%s LABEL=%s"%(identifier,path,ptype,_label) ) 
+                    "'%s' TYPE=%s LABEL=%s"%(identifier,path,
+                                                   PI.TYPE2STR[ptype],_label) ) 
 
             else : 
 
                 self.pi_create += 1 
                 self.print_msg( "New path item cretated. ID='%s' PATH='%s' "
-                        "TYPE=%s LABEL=%s"%(identifier,path,ptype,_label) ) 
+                        "TYPE=%s LABEL=%s"%(identifier,path,
+                                                   PI.TYPE2STR[ptype],_label) ) 
 
             return pitm 
 
@@ -170,7 +174,7 @@ class Command(CommandOutputMixIn, BaseCommand):
             # skip empty lines 
             if len(line) == 0 : continue
 
-            # identifier 
+            # object identifier 
             if line[0] == '#' : 
                 identifier = line[1:]
                 tobj = _get_or_create_object( identifier )
@@ -182,7 +186,7 @@ class Command(CommandOutputMixIn, BaseCommand):
             path = tmp[0] 
             
             try: 
-                ptype = STR2TYPE[tmp[1].lower()]
+                ptype = PI.STR2TYPE[tmp[1].lower()]
             except IndexError :
                 self.pi_failure += 1 
                 self.print_err("Line %i: Line ignored! Missing type field!"

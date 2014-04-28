@@ -50,9 +50,6 @@ from eoxserver.resources.coverages import models as cov_models
 
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
-# type-code to string conversion
-TYPE2STR = dict( models.PathItem.TYPE_CHOICES ) 
-
 #------------------------------------------------------------------------------
 # special filters 
 
@@ -75,6 +72,12 @@ def filter_unbound( selection ):
     for item in selection : 
         if item.identifier not in eoobj_ids : 
             yield item 
+
+def filter_empty( selection ): 
+
+    for item in selection:
+        if item.paths.count() == 0 : 
+            yield item
 
 #------------------------------------------------------------------------------
 
@@ -105,6 +108,13 @@ class Command(CommandOutputMixIn, BaseCommand):
             default=False,
             help=("Optional. List unbound identifiers only, i.e., identifers " 
                   "for which no EO-Object exists." )
+        ),
+        make_option('--empty',
+            dest='list_empty',
+            action='store_true',
+            default=False,
+            help=("Optional. List empty identifiers only, i.e., identifers " 
+                  "having no linked path item." )
         ),
         make_option('-i','--id','--identifier',
             dest='identifier',
@@ -140,8 +150,13 @@ class Command(CommandOutputMixIn, BaseCommand):
         #list_path_only  = bool(options.get('list_path_only')) 
         full_dump       = bool(options.get('full_dump')) 
         list_unbound    = bool(options.get('list_unbound')) 
+        list_empty      = bool(options.get('list_empty')) 
 
         identifier      = options.get('identifier',None)
+
+        if list_unbound and list_empty : 
+            raise CommandError( "The '--empty' and '--unbound' methods are "
+                                "mutually exclusive." ) 
 
         #----------------------------------------------------------------------
         # object generators 
@@ -156,7 +171,10 @@ class Command(CommandOutputMixIn, BaseCommand):
             selection = selection.prefetch_related('paths')
             paginator = Paginator( selection , N )
 
-            _filter = filter_unbound if list_unbound else filter_dummy 
+            _filter = filter_dummy 
+            if list_unbound : _filter = filter_unbound 
+            if list_empty :   _filter = filter_empty 
+
 
             # iterate over the pages 
             for i in xrange( paginator.num_pages ):
@@ -168,23 +186,33 @@ class Command(CommandOutputMixIn, BaseCommand):
 
             yield models.TrackedObject.objects.get( identifier = identifier )  
 
+
+        def _check_if_unbound_path( tobj , path ): 
+
+            # get the remaining owners 
+            qs = path.owners.exclude( id = tobj.id )  
+
+            # check whether all of them are unbound 
+            return qs.count() == sum( 1 for _ in filter_unbound(qs) )
+
         #----------------------------------------------------------------------
         # output formaters  
 
         def _print_id( fid , item ): 
             fid.write( "%s\n"%( item.identifier ) ) 
 
-        def _print_is_and_paths( fid , item ): 
+        def _print_id_and_paths( fid , item ): 
             fid.write( "#%s\n"%( item.identifier ) ) 
             for path in item.paths.all() : 
-                fid.write( "%s;%s;%s\n"%( path.path, TYPE2STR[path.type],
+                if (not list_unbound) or _check_if_unbound_path(item, path) : 
+                    fid.write( "%s;%s;%s\n"%( path.path, path.typeAsStr,
                                                                 path.label ) ) 
 
         #----------------------------------------------------------------------
         # generate the outputs 
 
         _generator = _get_selected_object if identifier else _get_all_objects
-        _formater  = _print_is_and_paths if full_dump else _print_id
+        _formater  = _print_id_and_paths if full_dump else _print_id
 
         #----------------------------------------------------------------------
 

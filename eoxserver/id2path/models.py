@@ -79,6 +79,8 @@ class PathItem(models.Model):
     ) 
 
     TYPE_STRINGS= tuple( v for k,v in TYPE_CHOICES )
+    TYPE2STR = dict( TYPE_CHOICES ) 
+    STR2TYPE = dict( (((v,k) for k,v in TYPE_CHOICES)) ) 
 
     type = models.PositiveSmallIntegerField( choices=TYPE_CHOICES,
                                             blank=False, null=False ) 
@@ -86,13 +88,21 @@ class PathItem(models.Model):
     time_created = models.DateTimeField("Created",auto_now_add=True)
     time_updated = models.DateTimeField("Last update",auto_now=True)
 
-    path  = models.CharField(max_length=1024,unique=False,db_index=True)
+    path  = models.CharField(max_length=1024,unique=True,db_index=True)
     label = models.CharField(max_length=64,blank=True,null=True)
 
-    owner = models.ForeignKey(TrackedObject,related_name="paths")
+    #owner = models.ForeignKey(TrackedObject,related_name="paths")
+    owners = models.ManyToManyField(TrackedObject,related_name="paths")
+
+    @property 
+    def typeAsStr( self ): 
+        return self.TYPE2STR[self.type]
+
+    def __unicode__(self): 
+        return self.path
 
     class Meta:
-        unique_together = ( 'path' , 'owner' ) 
+        #unique_together = ( 'path' , 'owner' ) 
         verbose_name = "Path Item"
         verbose_name_plural = "Path Items"
 

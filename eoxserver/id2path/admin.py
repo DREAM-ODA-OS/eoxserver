@@ -31,14 +31,10 @@ from django.contrib import admin
 from eoxserver.id2path import models 
 
 
-class PathInline(admin.TabularInline):
+class TrackedObjectPathInline(admin.TabularInline):
 
+    model = models.PathItem.owners.through 
     extra = 0 
-
-    model = models.PathItem
-    readonly_fields = ('time_created','time_updated') 
-
-    fields = (('path','type','label','time_updated','time_created'))  
 
 
 class TrackedObjectAdmin(admin.ModelAdmin): 
@@ -48,6 +44,22 @@ class TrackedObjectAdmin(admin.ModelAdmin):
 
     fields = ('identifier',('time_updated','time_created'))
 
-    inlines = (PathInline,)
+    inlines = (TrackedObjectPathInline,)
+
+    search_fields = ['identifier',]
 
 admin.site.register(models.TrackedObject,TrackedObjectAdmin)
+
+
+class PathItemAdmin(admin.ModelAdmin): 
+
+    model = models.PathItem
+
+    readonly_fields = ('time_created','time_updated') 
+    fields = (('path','type','label'),('time_updated','time_created'))  
+
+    inlines = (TrackedObjectPathInline,)
+
+    search_fields = ['path',]
+
+admin.site.register(models.PathItem,PathItemAdmin)
