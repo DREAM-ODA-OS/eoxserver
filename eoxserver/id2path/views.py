@@ -30,7 +30,8 @@
 from django.conf import settings
 from django.http import HttpResponse
 
-from eoxserver.id2path import models 
+from eoxserver.id2path.models import TrackedObject as TO 
+from eoxserver.id2path.models import PathItem as PI
 from eoxserver.id2path.view_utils import ( HttpError, error_handler, 
     method_allow, ip_allow, ip_deny ) 
 
@@ -46,12 +47,6 @@ except ImportError:
             raise ImportError( "Failed to import any usable json module!" ) 
 
 #-------------------------------------------------------------------------------
-
-# type-code to string conversion
-TYPE2STR = dict( models.PathItem.TYPE_CHOICES ) 
-
-# type-string to code conversion 
-STR2TYPE = dict( (b,a) for (a,b) in models.PathItem.TYPE_CHOICES ) 
 
 # JSON formating options 
 #opts={}
@@ -88,6 +83,9 @@ def id2path( request ):
     # get the object identifier 
     identifier = inputs.get("id",None) 
 
+    # get the filters
+    filters    = inputs.get("filter",None) 
+
     # print service signature if no input provided 
     if ( identifier is None ) and ( filters is None ) : 
         r = { "service":"id2path" , "version" : "1.0" } 
@@ -96,18 +94,17 @@ def id2path( request ):
 
     # find the tracked object matching the input identifier
     try: 
-        obj = models.TrackedObject.objects.get( identifier = identifier )
-    except models.TrackedObject.DoesNotExist : 
+        obj = TO.objects.get( identifier = identifier )
+    except TO.DoesNotExist : 
         raise HttpError( 404, "Error: Record not found! Invalid"
                                 " identifier! IDENTIFIER='%s'"%identifier ) 
 
     # check the filters 
-    filters    = inputs.get("filter",None) 
     filters = filters.split(',') if ( filters is not None ) else [] 
 
     print filters 
     try: 
-        types = map( lambda s : STR2TYPE[s] , filters ) 
+        types = [ PI.STR2TYPE[s] for s in filters ]
     except KeyError : 
         raise HttpError( 400, "Error: Bad request! Invalid filter!" )
 
@@ -127,7 +124,7 @@ def id2path( request ):
     for path in paths.all() :
         
         l.append( { "url" : "file://%s"%( path.path ) , 
-                    "type"    : TYPE2STR[ path.type ] } ) 
+                    "type"    : PI.TYPE2STR[ path.type ] } ) 
 
     return HttpResponse( json.dumps( l , **opts ),
                                           content_type="application/json" )
