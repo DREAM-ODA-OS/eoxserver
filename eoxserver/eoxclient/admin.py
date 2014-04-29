@@ -38,7 +38,13 @@ class ClientLayerAdmin(admin.ModelAdmin):
 
     model = models.ClientLayer
 
-    fields = (('name','eoobj'),'description',('visible','has_time','color'))
+    fields = (
+                ('name','eoobj','order',),
+                ('description',),
+                ('visible','has_time','color',),
+                ('rectified','has_cloud_mask','has_snow_mask',),
+                ('wms_style',),
+            )
 
     search_fields = ['name','eoobj']
 

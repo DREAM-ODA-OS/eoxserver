@@ -72,14 +72,23 @@ class ClientLayer(models.Model):
 
     eoobj       = models.ForeignKey(coverages.DatasetSeries,related_name='+',
                                             verbose_name='Related EO Object' )
+    order       = models.BigIntegerField(default=0) # ordering parameter
     name        = models.CharField(max_length=256, null=True, blank=True)
     description = models.TextField(null=True, blank=True)
+    wms_style   = models.CharField(max_length=128, null=True, blank=True, 
+                                          verbose_name='WMS style') 
     color       = HexRGBColorField(null=True,blank=True,
                                           verbose_name='Marker RGB color') 
     has_time    = models.BooleanField(null=False,default=True,
                                           verbose_name='Has time-dimension?') 
     visible     = models.BooleanField(null=False,default=False,
                                           verbose_name='Is visible?') 
+    rectified   = models.BooleanField(null=False,default=True,
+                                          verbose_name='Is rectified?') 
+    has_cloud_mask = models.BooleanField(null=False,default=False,
+                                          verbose_name='Has cloud-mask?') 
+    has_snow_mask = models.BooleanField(null=False,default=False,
+                                          verbose_name='Has snow-mask?') 
 
     def __unicode__(self):
         return ( self.name or self.eoobj.identifier ) 

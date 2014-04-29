@@ -47,6 +47,9 @@ urlpatterns = patterns('',
     (r'^client/$', 'eoxserver.webclient.views.index'),
     (r'^client/(.*)', 'eoxserver.webclient.views.webclient'),
 
+    # EOxClient interface 
+    (r'^eoxc','eoxserver.eoxclient.views.data_json'),
+
     # Enable admin documentation:
     url(r'^admin/doc/', include('django.contrib.admindocs.urls')),
     # Enable the admin:
