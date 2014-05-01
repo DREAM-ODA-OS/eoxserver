@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 #
-# Local file-system files tracking.
+# EOxClient integration interface - Django view 
 #
 # Project: EOxServer <http://eoxserver.org>
 # Authors: Martin Paces <martin.paces@eox.at>
@@ -48,35 +48,23 @@ except ImportError:
 
 #-------------------------------------------------------------------------------
 
-# JSON formating options
-#opts={}
-opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
-
-#-------------------------------------------------------------------------------
-
-@error_handler # top error handler
-@method_allow( ['GET'] ) # HTTP method filter
-def data_json( request ):
-    """ generate dynamically EOxClient's data sources (data.json) """
+def layers2json( selection , opts={} ): 
+    """ convert EOxClient layers' selection to JSON """
 
     # get the service URL 
     url = get_eoxserver_config().get("services.owscommon","http_service_url")
-
-    # query set 
-    qset = models.ClientLayer.objects.all()
-    qset = qset.order_by('order','id') 
-    qset = qset.prefetch_related('eoobj')
 
     # generate the layers' list 
 
     layer_list = [] 
 
-    for item in qset :
+    for item in selection :
 
         id = item.eoobj.identifier 
         
         layer = { 
             "name" : ( item.name or id ) , 
+            "description" : ( item.description or "" ), 
             "timeSlider" : item.has_time , 
             "visible" : item.visible , 
             "view" : { 
@@ -98,11 +86,28 @@ def data_json( request ):
         if item.color :
             layer['color'] = item.color 
 
-        if item.description :
-            layer['description'] = item.description
-
         layer_list.append( layer )
 
-    return HttpResponse( json.dumps( { "products": layer_list }  , **opts ),
+    return json.dumps( { "products": layer_list }  , **opts )
+
+#-------------------------------------------------------------------------------
+
+# JSON formating options
+#opts={}
+opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
+
+#-------------------------------------------------------------------------------
+
+@error_handler # top error handler
+@method_allow( ['GET'] ) # HTTP method filter
+def data_json( request ):
+    """ generate dynamically EOxClient's data sources (data.json) """
+
+    # query set 
+    qset = models.ClientLayer.objects.all()
+    qset = qset.order_by('order','id') 
+    qset = qset.prefetch_related('eoobj')
+
+    return HttpResponse( layers2json( qset, opts ), 
                                           content_type="application/json" )
 

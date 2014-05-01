@@ -57,20 +57,26 @@ class HexRGBColorField( models.CharField ):
 
     def deconstruct(self):
         # Django 1.7 feature 
-        name, path, args, kwargs = super(HandField, self).deconstruct()
+        name, path, args, kwargs = super(HexRGBColorField, self).deconstruct()
         del kwargs['max_length']
         del kwargs['validators']
         return name, path, args, kwargs
 
     def get_prep_value(self, value):
-        return value.lower()
+        hex_rgb_color_validator( value ) 
+        value = ( None if value is None else value.lower() ) 
+        return super(HexRGBColorField, self).get_prep_value( value ) 
 
 #-------------------------------------------------------------------------------
 
 class ClientLayer(models.Model): 
     """ EOxClient layer """ 
 
-    eoobj       = models.ForeignKey(coverages.DatasetSeries,related_name='+',
+    EOOBJ_CLASS = coverages.DatasetSeries
+
+    #eoobj       = models.ForeignKey(EOOBJ_CLASS,related_name='client_layers',
+    #                                        verbose_name='Related EO Object' )
+    eoobj       = models.OneToOneField(EOOBJ_CLASS,related_name='client_layer',
                                             verbose_name='Related EO Object' )
     order       = models.BigIntegerField(default=0) # ordering parameter
     name        = models.CharField(max_length=256, null=True, blank=True)
