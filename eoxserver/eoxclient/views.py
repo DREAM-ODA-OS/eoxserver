@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 #
-# EOxClient integration interface - Django view 
+# EOxClient integration interface - Django view
 #
 # Project: EOxServer <http://eoxserver.org>
 # Authors: Martin Paces <martin.paces@eox.at>
@@ -27,7 +27,6 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-from django.conf import settings
 from django.http import HttpResponse
 
 from eoxserver.core.config import get_eoxserver_config
@@ -48,53 +47,55 @@ except ImportError:
 
 #-------------------------------------------------------------------------------
 
-def layers2json( selection , opts={} ): 
+def layers2json( selection , json_opts=None ):
     """ convert EOxClient layers' selection to JSON """
 
-    # get the service URL 
+    json_opts = ( json_opts or {} ) 
+
+    # get the service URL
     url = get_eoxserver_config().get("services.owscommon","http_service_url")
 
-    # generate the layers' list 
+    # generate the layers' list
 
-    layer_list = [] 
+    layer_list = []
 
     for item in selection :
 
-        id = item.eoobj.identifier 
-        
-        layer = { 
-            "name" : ( item.name or id ) , 
-            "description" : ( item.description or "" ), 
-            "timeSlider" : item.has_time , 
-            "visible" : item.visible , 
-            "view" : { 
-                "id" : id ,
-                "protocol" : "WMS" , 
-                "urls" : [ url ] , 
+        id_ = item.eoobj.identifier
+
+        layer = {
+            "name" : ( item.name or id_ ) ,
+            "description" : ( item.description or "" ),
+            "timeSlider" : item.has_time ,
+            "visible" : item.visible ,
+            "view" : {
+                "id" : id_ ,
+                "protocol" : "WMS" ,
+                "urls" : [ url ] ,
                 "style" : ( item.wms_style or "default" ) ,
                 "cloudMask" : item.has_cloud_mask,
                 "snowMask" : item.has_snow_mask,
-            }, 
-            "download" : { 
-                "id" : id ,
-                "protocol" : "EOWCS" , 
-                "url" : url , 
-                "rectified" : item.rectified , 
+            },
+            "download" : {
+                "id" : id_ ,
+                "protocol" : "EOWCS" ,
+                "url" : url ,
+                "rectified" : item.rectified ,
             } ,
-        } 
+        }
 
         if item.color :
-            layer['color'] = item.color 
+            layer['color'] = item.color
 
         layer_list.append( layer )
 
-    return json.dumps( { "products": layer_list }  , **opts )
+    return json.dumps( { "products": layer_list }  , **json_opts )
 
 #-------------------------------------------------------------------------------
 
 # JSON formating options
-#opts={}
-opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
+#JSON_OPTS={}
+JSON_OPTS={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
 
 #-------------------------------------------------------------------------------
 
@@ -103,11 +104,11 @@ opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
 def data_json( request ):
     """ generate dynamically EOxClient's data sources (data.json) """
 
-    # query set 
+    # query set
     qset = models.ClientLayer.objects.all()
-    qset = qset.order_by('order','id') 
+    qset = qset.order_by('order','id')
     qset = qset.prefetch_related('eoobj')
 
-    return HttpResponse( layers2json( qset, opts ), 
+    return HttpResponse( layers2json( qset, JSON_OPTS ),
                                           content_type="application/json" )
 

@@ -40,7 +40,6 @@ from django.db.utils import IntegrityError
 #------------------------------------------------------------------------------
 
 from eoxserver.eoxclient import models
-from eoxserver.eoxclient.views import layers2json
 
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
@@ -72,7 +71,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         ),
         make_option('-o','--order',
             dest='order', action='store', type='int', default=None,
-            help=("Optional layers list order (integer value).") 
+            help=("Optional layers list order (integer value).")
         ),
         make_option('--visible', dest='visible', action='store_true',
             default = False,
@@ -83,7 +82,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         ),
         make_option('--time', dest='time', action='store_true',
             default = True,
-            help=("Optional. Enable time-dimension (default for a dataset-series). " )
+            help=("Optional. Enable time-dimension (default for a dataset-series).")
         ),
         make_option('--no-time', dest='time', action='store_false',
             help=("Optional. Disable time-dimension. " )
@@ -124,27 +123,26 @@ class Command(CommandOutputMixIn, BaseCommand):
 
     def handle(self, *args, **options):
 
-        def get_default_order(): 
-
+        def get_default_order():
             o = models.ClientLayer.objects.aggregate(Max('order'))['order__max']
-
             return ( 0 if ( o is None ) else ( o + 10 ) )
-                
-        def codec_dummy( s ) : 
+
+        def codec_dummy(s):
             return ( None if ( s is None ) else unicode(s) )
 
-        def codec_unicode_escaped( s ) :
+        def codec_unicode_escaped(s):
             return ( None if ( s is None ) else s.decode("unicode_escape") )
+
         #----------------------------------------------------------------------
 
         eoobj_cls = models.ClientLayer.EOOBJ_CLASS
 
-        # set the string codec 
+        # set the string codec
         codec = codec_dummy
-        if options.get('unicode_escaped',False) : 
-            codec = codec_unicode_escaped 
+        if options.get('unicode_escaped',False):
+            codec = codec_unicode_escaped
 
-        # extract input parameters 
+        # extract input parameters
         order       = options.get('order',None)
         identifier  = codec( options.get('identifier',None) )
         name        = codec( options.get('layer_name',None) )
@@ -157,58 +155,58 @@ class Command(CommandOutputMixIn, BaseCommand):
         cloud_mask  = options.get('cloud_mask',False)
         snow_mask   = options.get('snow_mask',False)
 
-        if identifier is None : 
+        if identifier is None:
             raise CommandError("Missing the %s identifier ('-i' option)!"
-                               ""% eoobj_cls.__name__ ) 
+                               ""% eoobj_cls.__name__ )
 
         #----------------------------------------------------------------------
         # locate the linked EOObject
 
-        try: 
+        try:
 
-            eoobj = eoobj_cls.objects.get( identifier = identifier ) 
+            eoobj = eoobj_cls.objects.get( identifier = identifier )
 
-        except eoobj_cls.DoesNotExist :
+        except eoobj_cls.DoesNotExist:
             raise CommandError("No %s found matching the given identifier!"
                                " ID='%s'"%( eoobj_cls.__name__ , identifier ) )
-        else : 
+        else:
             self.print_msg("%s matching the given identifier found."
                                " ID='%s'"%( eoobj_cls.__name__ , identifier ) )
 
         #----------------------------------------------------------------------
-        # create the Client's Layer  
+        # create the Client's Layer
 
-        layer_prm = { 
-            'visible' : visible ,
-            'rectified' : rectified ,
-            'has_cloud_mask' : cloud_mask ,
-            'has_snow_mask' : snow_mask ,
-            'has_time' : time ,
-            'order' : ( get_default_order() if ( order is None ) else order )
-        } 
+        layer_prm = {
+            'visible': visible ,
+            'rectified': rectified ,
+            'has_cloud_mask': cloud_mask ,
+            'has_snow_mask': snow_mask ,
+            'has_time': time ,
+            'order': ( get_default_order() if ( order is None ) else order )
+        }
 
-        if name is not None : 
-            layer_prm['name'] = name 
+        if name is not None:
+            layer_prm['name'] = name
 
-        if description is not None : 
-            layer_prm['description'] = description 
-        
-        if wms_style is not None : 
-            layer_prm['wms_style'] = wms_style 
+        if description is not None:
+            layer_prm['description'] = description
 
-        if color is not None : 
-            layer_prm['color'] = color 
+        if wms_style is not None:
+            layer_prm['wms_style'] = wms_style
+
+        if color is not None:
+            layer_prm['color'] = color
 
         #----------------------------------------------------------------------
-        # create the Client's Layer  
+        # create the Client's Layer
 
-        try : 
-            
-            with transaction.commit_on_success() :
-                eoobj_cls = models.ClientLayer.objects.create( 
+        try:
+
+            with transaction.commit_on_success():
+                eoobj_cls = models.ClientLayer.objects.create(
                             eoobj = eoobj, **layer_prm )
 
-        except IntegrityError: 
+        except IntegrityError:
 
             self.print_msg("The layer already exists. Forcing layer's update."
                                                       " ID='%s'"% identifier )
@@ -216,34 +214,34 @@ class Command(CommandOutputMixIn, BaseCommand):
             #------------------------------------------------------------------
             # update the Client's layer
 
-            # avoid default re-ordering 
-            if order is None : 
-                del layer_prm['order'] 
+            # avoid default re-ordering
+            if order is None:
+                del layer_prm['order']
 
-            try : 
-                
-                with transaction.commit_on_success() :
+            try:
+
+                with transaction.commit_on_success():
                     obj = models.ClientLayer.objects.get( eoobj_id = eoobj.id )
-                    for field in layer_prm : 
-                        setattr( obj , field , layer_prm[field] ) 
-                    obj.save() 
+                    for field in layer_prm:
+                        setattr( obj , field , layer_prm[field] )
+                    obj.save()
 
-            except Exception as e : 
+            except Exception as ex:
                 raise CommandError("Layer update failed! ID='%s'"
-                               " REASON=%s: %s"%(identifier,type(e),str(e)))
+                               " REASON=%s: %s"%(identifier,type(ex),str(ex)))
 
-            else : 
+            else:
                 self.print_msg("New layer updated successfully."
                                                        " ID='%s'"% identifier )
 
             #------------------------------------------------------------------
 
-        except Exception as e : 
+        except Exception as ex:
             raise CommandError("Layer creation failed! ID='%s'"
-                               " REASON=%s: %s"%(identifier,type(e),str(e)))
+                               " REASON=%s: %s"%(identifier,type(ex),str(ex)))
 
-        else : 
+        else:
             self.print_msg("New layer created successfully."
-                                                      " ID='%s'"% identifier )
+                                                      " ID='%s'"%identifier)
 
         #----------------------------------------------------------------------

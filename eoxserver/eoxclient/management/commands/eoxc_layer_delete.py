@@ -38,23 +38,16 @@ from django.db import transaction
 #------------------------------------------------------------------------------
 
 from eoxserver.eoxclient import models
-from eoxserver.eoxclient.views import layers2json
 
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 from eoxserver.resources.coverages.management.commands import _variable_args_cb
 
 #------------------------------------------------------------------------------
 
-# JSON formating options
-#opts={}
-opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
-
-#------------------------------------------------------------------------------
-
 class Command(CommandOutputMixIn, BaseCommand):
 
     option_list = BaseCommand.option_list + (
-        make_option("-i", "--id", "--identifier", dest="identifiers", 
+        make_option("-i", "--id", "--identifier", dest="identifiers",
             action="callback", callback=_variable_args_cb, default=None,
             help=("Optional list of identifiers.")
         ),
@@ -68,60 +61,60 @@ class Command(CommandOutputMixIn, BaseCommand):
 
     def handle(self, *args, **options):
 
-        # statistic 
-        self.cl_removed = 0 
-        self.cl_failed  = 0 
-        self.cl_total   = 0 
+        # statistic
+        cl_removed = 0
+        cl_failed  = 0
+        cl_total   = 0
 
         #----------------------------------------------------------------------
 
         # Collect parameters
 
         self.verbosity = int(options.get('verbosity', 1))
-        identifiers = options.get('identifiers',None) 
+        identifiers = options.get('identifiers',None)
 
-        if identifiers is None : 
-            raise CommandError("Missing the required identifiers ('-i' option)!") 
+        if identifiers is None :
+            raise CommandError("Missing the required identifiers ('-i' option)!")
 
         #----------------------------------------------------------------------
 
         # get rid of any duplicate
-        identifiers = set( identifiers ) 
+        identifiers = set( identifiers )
 
-        self.cl_total = len(identifiers) 
+        cl_total = len(identifiers)
 
-        # prepare query set 
+        # prepare query set
 
         qset = models.ClientLayer.objects.all()
-        qset = qset.filter( eoobj__identifier__in = identifiers ) 
+        qset = qset.filter( eoobj__identifier__in = identifiers )
         qset = qset.prefetch_related('eoobj')
-        qset = qset.order_by('order','id') 
+        qset = qset.order_by('order','id')
 
-        for item in qset : 
-            
-            try: 
-                
+        for item in qset :
+
+            try:
+
                 with transaction.commit_on_success() :
-                    item.delete() 
+                    item.delete()
 
-            except Exception as e : 
-                self.cl_failed  += 1 
+            except Exception as ex:
+                cl_failed += 1
                 self.print_err("Layer removal failed! ID='%s'"
-                       " REASON=%s: %s"%(item.eoobj.identifier,type(e),str(e)))
+                     " REASON=%s: %s"%(item.eoobj.identifier,type(ex),str(ex)))
 
-            else : 
-                self.cl_removed += 1 
+            else :
+                cl_removed += 1
                 self.print_msg("Layer removed. ID='%s'"%item.eoobj.identifier)
-                
+
 
         #----------------------------------------------------------------------
         # print final statistic
 
-        cl_notfound =  self.cl_total - ( self.cl_removed + self.cl_failed ) 
+        cl_notfound =  cl_total - ( cl_removed + cl_failed )
 
-        if 0 < cl_notfound :  
+        if 0 < cl_notfound :
             self.print_wrn("Some of the requested layers were not found!")
 
-        self.print_msg("Layers removed:   %d of %d"%(self.cl_removed,self.cl_total))
-        self.print_msg("Layers failed:    %d of %d"%(self.cl_failed,self.cl_total))
-        self.print_msg("Layers not-found: %d of %d"%(cl_notfound,self.cl_total))
+        self.print_msg("Layers removed:   %d of %d"%(cl_removed,cl_total))
+        self.print_msg("Layers failed:    %d of %d"%(cl_failed,cl_total))
+        self.print_msg("Layers not-found: %d of %d"%(cl_notfound,cl_total))

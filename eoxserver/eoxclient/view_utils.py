@@ -35,29 +35,30 @@ from django.http import HttpResponse
 
 class HttpError(Exception):
     """ Simple HTTP error exception """
-    
-    def __init__( self , status , message ) :
+
+    def __init__(self, status, message):
+        Exception.__init__(self, message)
         self.status = status
         self.message = message
 
-    def __unicode__( self ):
-        return "%d %s"%( self.status , self.message )
+    def __unicode__(self):
+        return "%d %s"%(self.status, self.message)
 
 #-------------------------------------------------------------------------------
 # view wrappers
 
-def error_handler( view ):
+def error_handler(view):
     """ error handling decorator """
 
-    def _wrapper_( request ):
+    def _wrapper_(request):
 
         try:
 
-            return view( request )
-        
-        except HttpError as e :
-            response = HttpResponse(unicode(e),content_type="text/plain")
-            response.status_code = e.status
+            return view(request)
+
+        except HttpError as ex:
+            response = HttpResponse(unicode(ex), content_type="text/plain")
+            response.status_code = ex.status
             return response
 
     _wrapper_.__name__ = view.__name__
@@ -67,18 +68,18 @@ def error_handler( view ):
 
 #-------------------------------------------------------------------------------
 
-def method_allow( method_list ):
+def method_allow(method_list):
     """ reject non-supported HTTP methods """
 
-    def _wrap_( view ) :
-        def _wrapper_( request ):
+    def _wrap_(view):
+        def _wrapper_(request):
 
-            if request.method not in method_list :
-                raise HttpError( 405 , "Error: Method not supported!"
-                                            " METHOD='%s'"%request.method )
+            if request.method not in method_list:
+                raise HttpError(405, "Error: Method not supported!"
+                                            " METHOD='%s'"%request.method)
 
-            return view( request )
-            
+            return view(request)
+
         _wrapper_.__name__ = view.__name__
         _wrapper_.__doc__ = view.__doc__
 
