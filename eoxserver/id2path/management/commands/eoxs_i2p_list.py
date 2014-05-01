@@ -31,52 +31,52 @@ import traceback
 from optparse import make_option
 
 from django.core.management.base import BaseCommand, CommandError
-from django.core.paginator import Paginator 
+from django.core.paginator import Paginator
 
-## try the python default json module 
-#try : import json 
-#except ImportError: 
+## try the python default json module
+#try : import json
+#except ImportError:
 #    #try the original simplejson module
 #    try: import simplejson as json
-#    except ImportError: 
+#    except ImportError:
 #        #try the simplejson module packed in django
-#        try: import django.utils.simplejson as json 
-#        except ImportError: 
-#            raise ImportError( "Failed to import any usable json module!" ) 
+#        try: import django.utils.simplejson as json
+#        except ImportError:
+#            raise ImportError( "Failed to import any usable json module!" )
 
 #------------------------------------------------------------------------------
 from eoxserver.id2path import models
-from eoxserver.resources.coverages import models as cov_models 
+from eoxserver.resources.coverages import models as cov_models
 
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
 #------------------------------------------------------------------------------
-# special filters 
+# special filters
 
-def filter_dummy( selection ): 
+def filter_dummy( selection ):
     """ dummy filter - pass the input unchnaged """
     return selection
 
-#TODO: find a better way to filter the unbound items 
-def filter_unbound( selection ): 
+#TODO: find a better way to filter the unbound items
+def filter_unbound( selection ):
     """ filter unbound items """
 
-    # get list of identifiers 
-    ids = [ item.identifier for item in selection ] 
+    # get list of identifiers
+    ids = [ item.identifier for item in selection ]
 
-    # get list of EOObjects 
-    eoobj = cov_models.EOObject.objects.filter( identifier__in = ids ) 
-    eoobj_ids = [ item.identifier for item in eoobj ] 
+    # get list of EOObjects
+    eoobj = cov_models.EOObject.objects.filter( identifier__in = ids )
+    eoobj_ids = [ item.identifier for item in eoobj ]
 
-    # proceed with the filtering 
-    for item in selection : 
-        if item.identifier not in eoobj_ids : 
-            yield item 
+    # proceed with the filtering
+    for item in selection :
+        if item.identifier not in eoobj_ids :
+            yield item
 
-def filter_empty( selection ): 
+def filter_empty( selection ):
 
     for item in selection:
-        if item.paths.count() == 0 : 
+        if item.paths.count() == 0 :
             yield item
 
 #------------------------------------------------------------------------------
@@ -100,27 +100,27 @@ class Command(CommandOutputMixIn, BaseCommand):
 #            dest='list_path_only',
 #            action='store_true',
 #            default=False,
-#            help=("Optional. Suppress printing of the path type identifers." ) 
+#            help=("Optional. Suppress printing of the path type identifers." )
 #        ),
         make_option('--unbound',
             dest='list_unbound',
             action='store_true',
             default=False,
-            help=("Optional. List unbound identifiers only, i.e., identifers " 
+            help=("Optional. List unbound identifiers only, i.e., identifers "
                   "for which no EO-Object exists." )
         ),
         make_option('--empty',
             dest='list_empty',
             action='store_true',
             default=False,
-            help=("Optional. List empty identifiers only, i.e., identifers " 
+            help=("Optional. List empty identifiers only, i.e., identifers "
                   "having no linked path item." )
         ),
         make_option('-i','--id','--identifier',
             dest='identifier',
             action='store', type='string',
             default=None,
-            help=("Optional. Identifier for which the path is queried.") 
+            help=("Optional. Identifier for which the path is queried.")
         ),
     )
 
@@ -129,15 +129,15 @@ class Command(CommandOutputMixIn, BaseCommand):
     help = (
     """
     When no identifier is given the command prints a list of the `id2path`
-    registered objects. By default all object identifiers are printed. When 
+    registered objects. By default all object identifiers are printed. When
     requested only the unbound, i.e., identifiers for which no EOObject exists
-    are printed. 
+    are printed.
 
-    When an identifier is provided, than this object is printed. 
+    When an identifier is provided, than this object is printed.
 
     By default only the objects' identifiers are printed. On demand the path
-    items and their types are printed as well (full output). 
-    """ 
+    items and their types are printed as well (full output).
+    """
     )
 
     #--------------------------------------------------------------------------
@@ -147,74 +147,74 @@ class Command(CommandOutputMixIn, BaseCommand):
         # Collect parameters
         self.verbosity  = int(options.get('verbosity', 1))
         #print_json      = bool(options.get('json_dump',False))
-        #list_path_only  = bool(options.get('list_path_only')) 
-        full_dump       = bool(options.get('full_dump')) 
-        list_unbound    = bool(options.get('list_unbound')) 
-        list_empty      = bool(options.get('list_empty')) 
+        #list_path_only  = bool(options.get('list_path_only'))
+        full_dump       = bool(options.get('full_dump'))
+        list_unbound    = bool(options.get('list_unbound'))
+        list_empty      = bool(options.get('list_empty'))
 
         identifier      = options.get('identifier',None)
 
-        if list_unbound and list_empty : 
+        if list_unbound and list_empty :
             raise CommandError( "The '--empty' and '--unbound' methods are "
-                                "mutually exclusive." ) 
+                                "mutually exclusive." )
 
         #----------------------------------------------------------------------
-        # object generators 
+        # object generators
 
-        def _get_all_objects(): 
+        def _get_all_objects():
 
-            # pagination limit 
-            N=256 
+            # pagination limit
+            N=256
 
-            # list identifiers 
+            # list identifiers
             selection = models.TrackedObject.objects.all()
             selection = selection.prefetch_related('paths')
             paginator = Paginator( selection , N )
 
-            _filter = filter_dummy 
-            if list_unbound : _filter = filter_unbound 
-            if list_empty :   _filter = filter_empty 
+            _filter = filter_dummy
+            if list_unbound : _filter = filter_unbound
+            if list_empty :   _filter = filter_empty
 
 
-            # iterate over the pages 
+            # iterate over the pages
             for i in xrange( paginator.num_pages ):
                 for item in _filter( paginator.page(i+1) ):
-                    yield item 
+                    yield item
 
 
-        def _get_selected_object(): 
+        def _get_selected_object():
 
-            yield models.TrackedObject.objects.get( identifier = identifier )  
+            yield models.TrackedObject.objects.get( identifier = identifier )
 
 
-        def _check_if_unbound_path( tobj , path ): 
+        def _check_if_unbound_path( tobj , path ):
 
-            # get the remaining owners 
-            qs = path.owners.exclude( id = tobj.id )  
+            # get the remaining owners
+            qset = path.owners.exclude( id = tobj.id )
 
-            # check whether all of them are unbound 
-            return qs.count() == sum( 1 for _ in filter_unbound(qs) )
+            # check whether all of them are unbound
+            return qset.count() == sum( 1 for _ in filter_unbound(qset) )
 
         #----------------------------------------------------------------------
-        # output formaters  
+        # output formaters
 
-        def _print_id( fid , item ): 
-            fid.write( "%s\n"%( item.identifier ) ) 
+        def _print_id( fid , item ):
+            fid.write( "%s\n"%( item.identifier ) )
 
-        def _print_id_and_paths( fid , item ): 
-            fid.write( "#%s\n"%( item.identifier ) ) 
-            for path in item.paths.all() : 
-                if (not list_unbound) or _check_if_unbound_path(item, path) : 
+        def _print_id_and_paths( fid , item ):
+            fid.write( "#%s\n"%( item.identifier ) )
+            for path in item.paths.all() :
+                if (not list_unbound) or _check_if_unbound_path(item, path) :
                     fid.write( "%s;%s;%s\n"%( path.path, path.typeAsStr,
-                                                                path.label ) ) 
+                                                                path.label ) )
 
         #----------------------------------------------------------------------
-        # generate the outputs 
+        # generate the outputs
 
         _generator = _get_selected_object if identifier else _get_all_objects
         _formater  = _print_id_and_paths if full_dump else _print_id
 
         #----------------------------------------------------------------------
 
-        for item in _generator() : 
+        for item in _generator() :
             _formater( sys.stdout , item )

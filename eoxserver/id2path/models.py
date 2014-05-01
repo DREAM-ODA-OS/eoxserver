@@ -28,7 +28,6 @@
 #-------------------------------------------------------------------------------
 
 import logging
-import os.path
 
 from django.db import models
 
@@ -44,8 +43,8 @@ class TrackedObject(models.Model):
 
     identifier = models.CharField(max_length=256,unique=True,db_index=True)
 
-    def __unicode__(self): 
-        return self.identifier 
+    def __unicode__(self):
+        return self.identifier
 
     class Meta:
         verbose_name = "Tracked Object"
@@ -57,17 +56,17 @@ class PathItem(models.Model):
     """ path class - keep the shared the base and the specific relative part
     separate"""
 
-    # EOP allowed mask types 
-    FILE=1              # a file without any specific meaning 
-    RAWDATA=3           # raw image data 
-    METADATA=5          # metadata 
-    RAW_AND_METADATA=7  # data and metadata in one file 
-    RASTER_MASK=11      # raster mask 
-    VECTOR_MASK=13      # vector mask 
-    BROWSE=15           # browse image 
-    DIRECTORY=128       # directory 
+    # EOP allowed mask types
+    FILE=1              # a file without any specific meaning
+    RAWDATA=3           # raw image data
+    METADATA=5          # metadata
+    RAW_AND_METADATA=7  # data and metadata in one file
+    RASTER_MASK=11      # raster mask
+    VECTOR_MASK=13      # vector mask
+    BROWSE=15           # browse image
+    DIRECTORY=128       # directory
 
-    TYPE_CHOICES = ( 
+    TYPE_CHOICES = (
         ( FILE, "file" ),
         ( RAWDATA, "data" ),
         ( METADATA, "metadata" ),
@@ -76,14 +75,14 @@ class PathItem(models.Model):
         ( VECTOR_MASK, "vector-mask" ),
         ( BROWSE, "browse" ),
         ( DIRECTORY, "directory" ),
-    ) 
+    )
 
     TYPE_STRINGS= tuple( v for k,v in TYPE_CHOICES )
-    TYPE2STR = dict( TYPE_CHOICES ) 
-    STR2TYPE = dict( (((v,k) for k,v in TYPE_CHOICES)) ) 
+    TYPE2STR = dict( TYPE_CHOICES )
+    STR2TYPE = dict( (((v,k) for k,v in TYPE_CHOICES)) )
 
     type = models.PositiveSmallIntegerField( choices=TYPE_CHOICES,
-                                            blank=False, null=False ) 
+                                            blank=False, null=False )
 
     time_created = models.DateTimeField("Created",auto_now_add=True)
     time_updated = models.DateTimeField("Last update",auto_now=True)
@@ -94,15 +93,15 @@ class PathItem(models.Model):
     #owner = models.ForeignKey(TrackedObject,related_name="paths")
     owners = models.ManyToManyField(TrackedObject,related_name="paths")
 
-    @property 
-    def typeAsStr( self ): 
+    @property
+    def typeAsStr( self ):
         return self.TYPE2STR[self.type]
 
-    def __unicode__(self): 
+    def __unicode__(self):
         return self.path
 
     class Meta:
-        #unique_together = ( 'path' , 'owner' ) 
+        #unique_together = ( 'path' , 'owner' )
         verbose_name = "Path Item"
         verbose_name_plural = "Path Items"
 

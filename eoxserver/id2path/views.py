@@ -30,103 +30,103 @@
 from django.conf import settings
 from django.http import HttpResponse
 
-from eoxserver.id2path.models import TrackedObject as TO 
+from eoxserver.id2path.models import TrackedObject as TO
 from eoxserver.id2path.models import PathItem as PI
-from eoxserver.id2path.view_utils import ( HttpError, error_handler, 
-    method_allow, ip_allow, ip_deny ) 
+from eoxserver.id2path.view_utils import ( HttpError, error_handler,
+    method_allow, ip_allow, ip_deny )
 
-# try the python default json module 
-try : import json 
-except ImportError: 
+# try the python default json module
+try : import json
+except ImportError:
     #try the original simplejson module
     try: import simplejson as json
-    except ImportError: 
+    except ImportError:
         #try the simplejson module packed in django
-        try: import django.utils.simplejson as json 
-        except ImportError: 
-            raise ImportError( "Failed to import any usable json module!" ) 
+        try: import django.utils.simplejson as json
+        except ImportError:
+            raise ImportError( "Failed to import any usable json module!" )
 
 #-------------------------------------------------------------------------------
 
-# JSON formating options 
-#opts={}
-opts={ 'sort_keys':True,'indent':4,'separators':(',', ': ') } 
+# JSON formating options
+#JSON_OPTS={}
+JSON_OPTS={ 'sort_keys':True,'indent':4,'separators':(',', ': ') }
 
 #-------------------------------------------------------------------------------
 
-@error_handler                              # top error handler 
+@error_handler                              # top error handler
 @ip_deny( settings.ID2PATH_DENY_FROM )      # IP access black-list
 @ip_allow( settings.ID2PATH_ALLOW_FROM )    # IP access white-list
-@method_allow( ['GET'] )                    # HTTP method filter 
-def id2path( request ): 
-    """ id2path view handler """ 
-    
+@method_allow( ['GET'] )                    # HTTP method filter
+def id2path( request ):
+    """ id2path view handler """
+
     #--------------------------------------------------------------------------
-    # check the query string 
-    allowed_keys = ( "id" , "filter" ) 
-    inputs = [] 
-    for key,values in request.GET.lists() : 
+    # check the query string
+    allowed_keys = ( "id" , "filter" )
+    inputs = []
+    for key,values in request.GET.lists() :
         key = key.lower()
-        if key.lower() not in allowed_keys: 
+        if key.lower() not in allowed_keys:
             raise HttpError( 400, "Error: Bad request! Invalid key!"
-                                                        " KEY='%s'"%key ) 
-        if len(values) > 1 : 
+                                                        " KEY='%s'"%key )
+        if len(values) > 1 :
             raise HttpError( 400, "Error: Bad request! Repeates key!"
-                                                        " KEY='%s'"%key ) 
-        inputs.append( (key,values[0]) ) 
+                                                        " KEY='%s'"%key )
+        inputs.append( (key,values[0]) )
 
-    inputs = dict(inputs) 
+    inputs = dict(inputs)
 
     #--------------------------------------------------------------------------
-    # check the inputs 
+    # check the inputs
 
-    # get the object identifier 
-    identifier = inputs.get("id",None) 
+    # get the object identifier
+    identifier = inputs.get("id",None)
 
     # get the filters
-    filters    = inputs.get("filter",None) 
+    filters    = inputs.get("filter",None)
 
-    # print service signature if no input provided 
-    if ( identifier is None ) and ( filters is None ) : 
-        r = { "service":"id2path" , "version" : "1.0" } 
-        return HttpResponse( json.dumps( r , **opts ),
+    # print service signature if no input provided
+    if ( identifier is None ) and ( filters is None ) :
+        rv = { "service":"id2path" , "version" : "1.0" }
+        return HttpResponse( json.dumps( rv , **JSON_OPTS ),
                                           content_type="application/json" )
 
     # find the tracked object matching the input identifier
-    try: 
+    try:
         obj = TO.objects.get( identifier = identifier )
-    except TO.DoesNotExist : 
+    except TO.DoesNotExist :
         raise HttpError( 404, "Error: Record not found! Invalid"
-                                " identifier! IDENTIFIER='%s'"%identifier ) 
+                                " identifier! IDENTIFIER='%s'"%identifier )
 
-    # check the filters 
-    filters = filters.split(',') if ( filters is not None ) else [] 
+    # check the filters
+    filters = filters.split(',') if ( filters is not None ) else []
 
-    print filters 
-    try: 
+    print filters
+    try:
         types = [ PI.STR2TYPE[s] for s in filters ]
-    except KeyError : 
+    except KeyError :
         raise HttpError( 400, "Error: Bad request! Invalid filter!" )
 
     #--------------------------------------------------------------------------
-    # filter the records 
+    # filter the records
 
-    paths = obj.paths.all() 
+    paths = obj.paths.all()
 
-    if types : 
-        paths = paths.filter( type__in = types )   
+    if types :
+        paths = paths.filter( type__in = types )
 
     #--------------------------------------------------------------------------
-    # pack the response 
+    # pack the response
 
-    l = [] 
+    path_list = []
 
     for path in paths.all() :
-        
-        l.append( { "url" : "file://%s"%( path.path ) , 
-                    "type"    : PI.TYPE2STR[ path.type ] } ) 
 
-    return HttpResponse( json.dumps( l , **opts ),
+        path_list.append( { "url" : "file://%s"%( path.path ) ,
+                    "type"    : PI.TYPE2STR[ path.type ] } )
+
+    return HttpResponse( json.dumps( path_list, **JSON_OPTS ),
                                           content_type="application/json" )
 
     #--------------------------------------------------------------------------
