@@ -60,6 +60,12 @@ class Command(CommandOutputMixIn, BaseCommand):
             default=False,
             help=("Optional. Full layers' dump in the JSON format." )
         ),
+        make_option('--flags',
+            dest='flags_dump',
+            action='store_true',
+            default=False,
+            help=("Optional. Dump flags to be passed to the create command." )
+        ),
         make_option("-i", "--id", "--identifier", dest="identifiers", 
             action="callback", callback=_variable_args_cb, default=None,
             help=("Optional list of identifiers.")
@@ -74,15 +80,55 @@ class Command(CommandOutputMixIn, BaseCommand):
 
     def handle(self, *args, **options):
 
-        def id_list( qset ) : 
+        #----------------------------------------------------------------------
+
+        def unicode_escape( s ): 
+            return unicode(s).encode("unicode_escape").replace("'",r'\x27') 
+
+        def layers2cliflags( qset ) : 
+            l = []
+            for item in qset : 
+
+                r = [] 
+
+                r.append( "--escaped" )
+
+                r.append( "-i '%s'"%unicode_escape(item.eoobj.identifier) )
+
+                if item.name : 
+                    r.append( "-n '%s'"%unicode_escape(item.name) )
+
+                if item.description : 
+                    r.append( "-d '%s'"%unicode_escape(item.description) )
+
+                if item.wms_style : 
+                    r.append( "-s '%s'"%unicode_escape(item.wms_style) )
+
+                if item.color : 
+                    r.append( "-c '%s'"%unicode_escape(item.color) )
+                
+                r.append( ('--not-visible','--visible')[item.has_time] ) 
+                r.append( ('--no-time','--time')[item.visible] ) 
+                r.append( ('--referenceable','--rectified')[item.rectified] ) 
+                r.append( ('--no-cloud-mask','--cloud-mask')[item.has_cloud_mask] ) 
+                r.append( ('--no-snow-mask','--snow-mask')[item.has_snow_mask] ) 
+
+                l.append( " ".join(r)) 
+
+            return "\n".join(l) 
+
+        def layers2idlist( qset ) : 
             l = []
             for item in qset : 
                 l.append(item.eoobj.identifier)
             return "\n".join(l) 
 
+        #----------------------------------------------------------------------
+
         # Collect parameters
         self.verbosity = int(options.get('verbosity', 1))
         json_dump = bool(options.get('json_dump',False))
+        flags_dump = bool(options.get('flags_dump',False))
         identifiers = options.get('identifiers',None)
 
         # DB query-set 
@@ -98,8 +144,10 @@ class Command(CommandOutputMixIn, BaseCommand):
         # JSON 
         if json_dump : 
             output = layers2json( qset , opts ) 
+        elif flags_dump :
+            output = layers2cliflags( qset ) 
         else : 
-            output = id_list( qset ) 
+            output = layers2idlist( qset ) 
 
         if output : 
             # print output 

@@ -39,6 +39,11 @@ from eoxserver.resources.coverages import models as coverages
 _gerexHexRGBColor = re.compile(r"^#[0-9a-f]{6,6}$",re.IGNORECASE)
 
 def hex_rgb_color_validator( color ): 
+    """ Hexadecimal color string validator. """
+
+    if color is None : 
+        return None 
+
     try: 
         if _gerexHexRGBColor.match(color) is None: 
             raise TypeError("No match!")
@@ -46,6 +51,7 @@ def hex_rgb_color_validator( color ):
         raise ValidationError("%s is not an RGB color string!"%(repr(color)))
 
 class HexRGBColorField( models.CharField ): 
+    """ Hexadecimal color string field. """
     
     description = "Hexadecimal RGB color."
 

@@ -109,6 +109,11 @@ class Command(CommandOutputMixIn, BaseCommand):
         make_option('--no-snow-mask', dest='snow_mask', action='store_false',
             help=("Optional. Disable snow masking (default)." )
         ),
+        make_option('--escaped', dest='unicode_escaped', action='store_true',
+            default = True,
+            help=("Optional. Indicates the input strings are unicode-escaped"
+                  " (i.e., encoded with the 'unicode_escape' codec)." )
+        ),
     )
 
     args = "-i <id> [-n <name>][-d <desctription>]"
@@ -125,17 +130,27 @@ class Command(CommandOutputMixIn, BaseCommand):
 
             return ( 0 if ( o is None ) else ( o + 10 ) )
                 
+        def codec_dummy( s ) : 
+            return ( None if ( s is None ) else unicode(s) )
+
+        def codec_unicode_escaped( s ) :
+            return ( None if ( s is None ) else s.decode("unicode_escape") )
         #----------------------------------------------------------------------
 
         eoobj_cls = models.ClientLayer.EOOBJ_CLASS
 
+        # set the string codec 
+        codec = codec_dummy
+        if options.get('unicode_escaped',False) : 
+            codec = codec_unicode_escaped 
+
         # extract input parameters 
-        identifier  = options.get('identifier',None)
-        name        = options.get('layer_name',None)
-        description = options.get('description',None)
-        wms_style   = options.get('wms_style',None)
         order       = options.get('order',None)
-        color       = options.get('color',None)
+        identifier  = codec( options.get('identifier',None) )
+        name        = codec( options.get('layer_name',None) )
+        description = codec( options.get('description',None) )
+        wms_style   = codec( options.get('wms_style',None) )
+        color       = codec( options.get('color',None) )
         visible     = options.get('visible',False)
         time        = options.get('time',True)
         rectified   = options.get('rectified',True)
@@ -145,9 +160,6 @@ class Command(CommandOutputMixIn, BaseCommand):
         if identifier is None : 
             raise CommandError("Missing the %s identifier ('-i' option)!"
                                ""% eoobj_cls.__name__ ) 
-
-        if order is None : 
-            order = get_default_order()
 
         #----------------------------------------------------------------------
         # locate the linked EOObject
@@ -172,7 +184,7 @@ class Command(CommandOutputMixIn, BaseCommand):
             'has_cloud_mask' : cloud_mask ,
             'has_snow_mask' : snow_mask ,
             'has_time' : time ,
-            'order' : order ,
+            'order' : ( get_default_order() if ( order is None ) else order )
         } 
 
         if name is not None : 
