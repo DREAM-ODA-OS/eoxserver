@@ -47,6 +47,9 @@ urlpatterns = patterns('',
     (r'^client/$', 'eoxserver.webclient.views.index'),
     (r'^client/(.*)', 'eoxserver.webclient.views.webclient'),
 
+    # EOxClient interface 
+    (r'^eoxc','eoxserver.eoxclient.views.data_json'),
+
     # id 2 path extension 
     (r'^id2path','eoxserver.id2path.views.id2path'),
 
