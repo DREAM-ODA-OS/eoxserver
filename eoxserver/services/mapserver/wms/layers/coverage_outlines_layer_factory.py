@@ -65,6 +65,11 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
             # add feature to the group
             layer.addFeature(shape)
 
-            accum = outline | accum
+# TODO: run the test 
+#        # Dummy feature, or else empty groups will produce errors
+#        shape = shapeObj()
+#        shape.initValues(1)
+#        shape.setValue(0, "dummy")
+#        layer.addFeature(shape)
 
         yield layer, None, () 
