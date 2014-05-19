@@ -43,7 +43,7 @@ class CoverageOutlinesLayerFactory(LayerFactory,PolygonLayerMixIn,StyledLayerMix
 
     def generate(self): 
 
-        layer = self._polygon_layer( self.group, filled=False,srid=4326)
+        layer = self._polygon_layer(self.group, filled=False, srid=4326)
 
         # initialize accumulator to an empty geometry
         accum = MultiPolygon([])
