@@ -194,8 +194,8 @@ class Command(CommandOutputMixIn, BaseCommand):
                 continue
             except KeyError :
                 self.pi_failure += 1
-                self.print_err("Line %i: Line ignored! Invalid type field!"
-                   " ID='%s' PATH='%s' TYPE='%s'"%(line_num,identifier,path,tmp[1]))
+                self.print_err("Line %i: Line ignored! Invalid type field! ID="
+                  "'%s' PATH='%s' TYPE='%s'"%(line_num,identifier,path,tmp[1]))
                 continue
 
             label = None if ( len(tmp) < 3 ) else ( tmp[2] or None )
@@ -210,7 +210,7 @@ class Command(CommandOutputMixIn, BaseCommand):
 
         self.print_msg("Tracked Objects created:  %d of %d"%(self.to_create,to_total))
         self.print_msg("Path Items created:       %d of %d"%(self.pi_create,pi_total))
-        self.print_msg("Path Items updtaed:       %d of %d"%(self.pi_update,pi_total))
+        self.print_msg("Path Items updated:       %d of %d"%(self.pi_update,pi_total))
         self.print_msg("Path Items failures:      %d of %d"%(self.pi_failure,pi_total))
 
         if self.pi_failure > 0 :
