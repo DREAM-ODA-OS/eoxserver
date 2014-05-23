@@ -67,21 +67,28 @@ def layers2json( selection , json_opts=None ):
             "name" : ( item.name or id_ ) ,
             "description" : ( item.description or "" ),
             "timeSlider" : item.has_time ,
+            "timeSliderProtocol" : "WPS" ,
             "visible" : item.visible ,
             "view" : {
                 "id" : id_ ,
                 "protocol" : "WMS" ,
                 "urls" : [ url ] ,
                 "style" : ( item.wms_style or "default" ) ,
-                "cloudMask" : item.has_cloud_mask,
-                "snowMask" : item.has_snow_mask,
+#                "cloudMask" : item.has_cloud_mask,
+#                "snowMask" : item.has_snow_mask,
+                "extraLayers" : {}, 
             },
             "download" : {
                 "id" : id_ ,
                 "protocol" : "EOWCS" ,
                 "url" : url ,
                 "rectified" : item.rectified ,
-            } ,
+            },
+            "info" : {
+                "id": "%s_outlines"%id_ ,
+                "protocol": "WMS",
+                "url": url, 
+            },
         }
 
         if item.color :
