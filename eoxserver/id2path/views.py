@@ -102,7 +102,6 @@ def id2path( request ):
     # check the filters
     filters = filters.split(',') if ( filters is not None ) else []
 
-    print filters
     try:
         types = [ PI.STR2TYPE[s] for s in filters ]
     except KeyError :
@@ -123,8 +122,15 @@ def id2path( request ):
 
     for path in paths.all() :
 
-        path_list.append( { "url" : "file://%s"%( path.path ) ,
-                    "type"    : PI.TYPE2STR[ path.type ] } )
+        item = {
+            "url" : "file://%s"%(path.path),
+            "type" : PI.TYPE2STR[path.type],
+        }
+
+        if path.label:
+            item["label"] = path.label
+
+        path_list.append(item)
 
     return HttpResponse( json.dumps( path_list, **JSON_OPTS ),
                                           content_type="application/json" )
