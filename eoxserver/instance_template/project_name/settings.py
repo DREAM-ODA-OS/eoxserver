@@ -76,6 +76,10 @@ ALLOWED_HOSTS = []
 ID2PATH_DENY_FROM = [] 
 ID2PATH_ALLOW_FROM = [ '127.0.0.1' , '::1' ] 
 
+# allow access to the id2path from anywhere in the debug mode 
+if DEBUG : 
+    ID2PATH_ALLOW_FROM.append('0.0.0.0/0') 
+
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.
