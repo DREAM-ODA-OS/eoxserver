@@ -51,12 +51,12 @@ def filter_dummy(selection):
 def _get_bound_ids(selection):
 
     # get list of identifiers
-    ids_all = [ item.identifier for item in selection ]
+    ids_all = [item.identifier for item in selection]
 
     #TODO: find a better way to filter the unbound items
     # get list of bound ids
     eoobj = EOObject.objects.filter(identifier__in=ids_all)
-    ids_bound = [ item.identifier for item in eoobj ]
+    ids_bound = [item.identifier for item in eoobj]
 
     return ids_bound
 
@@ -66,7 +66,7 @@ def filter_unbound(selection):
     ids_bound = _get_bound_ids(selection)
 
     # proceed with the filtering
-    for item in selection :
+    for item in selection:
         if item.identifier not in ids_bound:
             yield item
 
@@ -75,14 +75,14 @@ def all_unbound(selection):
 
     ids_bound = _get_bound_ids(selection)
 
-    return (len(ids_bound) == 0)
+    return len(ids_bound) == 0
 
 
 def filter_empty(selection):
     """ filter items having no path items registered """
 
     for item in selection:
-        if item.paths.count() == 0 :
+        if item.paths.count() == 0:
             yield item
 
 #------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def filter_empty(selection):
 class Command(CommandOutputMixIn, BaseCommand):
 
     option_list = BaseCommand.option_list + (
-        make_option('-f','--full',
+        make_option('-f', '--full',
             dest='full_dump',
             action='store_true',
             default=False,
@@ -125,7 +125,7 @@ class Command(CommandOutputMixIn, BaseCommand):
             help=("Optional. List empty identifiers only, i.e., identifers "
                   "having no linked path item.")
        ),
-        make_option('-i','--id','--identifier',
+        make_option('-i', '--id', '--identifier',
             dest='identifier',
             action='store', type='string',
             default=None,
@@ -152,19 +152,18 @@ class Command(CommandOutputMixIn, BaseCommand):
     #--------------------------------------------------------------------------
 
     def handle(self, *args, **options):
-
         # Collect parameters
-        self.verbosity  = int(options.get('verbosity', 1))
-        full_dump       = bool(options.get('full_dump'))
-        list_unbound    = bool(options.get('list_unbound'))
+        self.verbosity = int(options.get('verbosity', 1))
+        full_dump = bool(options.get('full_dump'))
+        list_unbound = bool(options.get('list_unbound'))
         list_unbound_strict = bool(options.get('list_unbound_strict'))
-        list_empty      = bool(options.get('list_empty'))
+        list_empty = bool(options.get('list_empty'))
 
-        identifier      = options.get('identifier',None)
+        identifier = options.get('identifier', None)
 
-        list_unbound    = (list_unbound or list_unbound_strict)
+        list_unbound = (list_unbound or list_unbound_strict)
 
-        if list_unbound and list_empty :
+        if list_unbound and list_empty:
             raise CommandError("The '--empty', '--unbound' and "
                     "'--unbound-strict' methods are mutually exclusive.")
 
@@ -172,19 +171,19 @@ class Command(CommandOutputMixIn, BaseCommand):
         # object generators
 
         def _get_all_objects():
-
             # pagination limit
-            N=256
+            nitems = 256
 
             # list identifiers
             selection = TO.objects.all()
             selection = selection.prefetch_related('paths')
-            paginator = Paginator(selection, N)
+            paginator = Paginator(selection, nitems)
 
             _filter = filter_dummy
-            if list_unbound : _filter = filter_unbound
-            if list_empty :   _filter = filter_empty
-
+            if list_empty:
+                _filter = filter_empty
+            elif list_unbound:
+                _filter = filter_unbound
 
             # iterate over the pages
             for i in xrange(paginator.num_pages):
@@ -209,7 +208,7 @@ class Command(CommandOutputMixIn, BaseCommand):
                 return False
 
             # is item a directory?
-            if path.type != path.DIRECTORY :
+            if path.type != path.DIRECTORY:
                 # no - it is a file
                 return True
 
@@ -235,17 +234,18 @@ class Command(CommandOutputMixIn, BaseCommand):
 
         def _print_id_and_paths(fid, item):
             fid.write("#%s\n"%(item.identifier))
-            for path in item.paths.all() :
+            for path in item.paths.all():
                 if (not list_unbound_strict) or _check_if_unbound_path(path, item):
-                    fid.write("%s;%s;%s\n"%(path.path, path.typeAsStr, path.label))
+                    items = [ path.path, path.typeAsStr ] 
+                    if path.label:
+                        items.append(path.label)
+                    fid.write("%s\n"%(";".join(items)))
 
         #----------------------------------------------------------------------
         # generate the outputs
 
         _generator = _get_selected_object if identifier else _get_all_objects
-        _formater  = _print_id_and_paths if full_dump else _print_id
+        _formater = _print_id_and_paths if full_dump else _print_id
 
-        #----------------------------------------------------------------------
-
-        for item in _generator() :
+        for item in _generator():
             _formater(sys.stdout, item)
