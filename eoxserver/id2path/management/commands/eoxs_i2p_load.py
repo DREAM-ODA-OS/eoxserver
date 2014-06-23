@@ -26,30 +26,21 @@
 #-------------------------------------------------------------------------------
 
 import sys
-import traceback
-
+#import traceback
 from optparse import make_option
-
 from django.core.management.base import BaseCommand, CommandError
 from django.db.utils import IntegrityError
 from django.db import transaction
-
-
-#------------------------------------------------------------------------------
-
 from eoxserver.id2path.models import TrackedObject as TO
 from eoxserver.id2path.models import PathItem as PI
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
-#------------------------------------------------------------------------------
 
 class Command(CommandOutputMixIn, BaseCommand):
 
     option_list = BaseCommand.option_list + (
-        make_option('-i','--id','--identifier',
-            dest='identifier',
-            action='store', type='string',
-            default=None,
+        make_option('-i', '--id', '--identifier',
+            dest='identifier', action='store', type='string', default=None,
             help=("Optional. Identifier for which the paths will be loaded.")
         ),
     )
@@ -77,7 +68,7 @@ class Command(CommandOutputMixIn, BaseCommand):
     The labels are optional and can be omitted. The types can have one of the
     following values:
       %s
-    """ % ( "|".join( PI.TYPE_STRINGS ) )
+    """ % ("|".join(PI.TYPE_STRINGS))
     )
 
     #--------------------------------------------------------------------------
@@ -86,132 +77,101 @@ class Command(CommandOutputMixIn, BaseCommand):
     def handle(self, *args, **options):
 
         # statistic
-        self.to_found  = 0
+        self.to_found = 0
         self.to_create = 0
         self.pi_create = 0
         self.pi_update = 0
         self.pi_failure = 0
 
         #----------------------------------------------------------------------
-        # get or create tracked object
-        def _get_or_create_object( identifier ) :
 
-            if identifier is None : return None
-
+        def _get_or_create_object(identifier):
+            """ get or create tracked object"""
+            if identifier is None:
+                return None
             try:
-
                 tobj = TO.objects.get(identifier=identifier)
-
-            except TO.DoesNotExist :
-
+            except TO.DoesNotExist:
                 with transaction.commit_on_success():
                     tobj = TO.objects.create(identifier=identifier)
-
                 self.to_create += 1
                 self.print_msg("New tracked object cretated."
                                                     " ID='%s'"%tobj.identifier)
-
-            else :
-
+            else:
                 self.to_found += 1
                 self.print_msg("An existing tracked object found."
                                                     " ID='%s'"%tobj.identifier)
-
             return tobj
 
-        #----------------------------------------------------------------------
-        # create or update the path item
-        def _create_or_update_path( tobj, path, ptype, label ):
-
+        def _create_or_update_path(tobj, path, ptype, label):
+            """ create or update the path item"""
             _label = "'%s'"%label if label else None
-
             try:
-
-                #create the path item
                 with transaction.commit_on_success():
-                    pitm = PI.objects.create( path=path, type=ptype,
-                                                                label=label )
-                    pitm.owners.add( tobj )
-
-            except IntegrityError :
-
+                    pitm = PI.objects.create(path=path, type=ptype, label=label)
+                    pitm.owners.add(tobj)
+            except IntegrityError:
                 #update the path item
                 with transaction.commit_on_success():
-                    pitm = PI.objects.get( path=path )
-                    pitm.type=ptype
-                    pitm.label=label
+                    pitm = PI.objects.get(path=path)
+                    pitm.type = ptype
+                    pitm.label = label
                     pitm.save()
-                    pitm.owners.add( tobj )
-
+                    pitm.owners.add(tobj)
                 self.pi_update += 1
-                self.print_msg( "An existing path item updated. ID='%s' PATH="
-                    "'%s' TYPE=%s LABEL=%s"%(identifier,path,
-                                                   PI.TYPE2STR[ptype],_label) )
-
-            else :
-
+                self.print_msg("An existing path item updated. ID='%s' PATH="
+                    "'%s' TYPE=%s LABEL=%s"%(identifier, path,
+                                                   PI.TYPE2STR[ptype], _label))
+            else:
                 self.pi_create += 1
-                self.print_msg( "New path item cretated. ID='%s' PATH='%s' "
-                        "TYPE=%s LABEL=%s"%(identifier,path,
-                                                   PI.TYPE2STR[ptype],_label) )
-
+                self.print_msg("New path item cretated. ID='%s' PATH='%s' "
+                        "TYPE=%s LABEL=%s"%(identifier, path,
+                                                   PI.TYPE2STR[ptype], _label))
             return pitm
 
         #----------------------------------------------------------------------
 
-
         # get input parameters
-        identifier  = options.get('identifier',None)
+        identifier = options.get('identifier', None)
 
         # get the tracked object for the given identifier
-        tobj = _get_or_create_object( identifier )
+        tobj = _get_or_create_object(identifier)
 
         # process the input stream
-        for line_num,line in enumerate( sys.stdin , 1 ) :
-
+        for line_num, line in enumerate(sys.stdin, 1):
             line = line.strip()
-
-            # skip empty lines
-            if len(line) == 0 : continue
-
-            # object identifier
-            if line[0] == '#' :
-                identifier = line[1:]
-                tobj = _get_or_create_object( identifier )
+            if len(line) == 0: # skip empty lines
                 continue
-
-            # parse the line
+            if line[0] == '#':
+                identifier = line[1:]
+                tobj = _get_or_create_object(identifier)
+                continue
             tmp = line.split(";")
-
             path = tmp[0]
-
             try:
                 ptype = PI.STR2TYPE[tmp[1].lower()]
-            except IndexError :
+            except IndexError:
                 self.pi_failure += 1
                 self.print_err("Line %i: Line ignored! Missing type field!"
-                             " ID='%s' PATH='%s'"%(line_num,identifier,path))
+                             " ID='%s' PATH='%s'"%(line_num, identifier, path))
                 continue
-            except KeyError :
+            except KeyError:
                 self.pi_failure += 1
                 self.print_err("Line %i: Line ignored! Invalid type field! ID="
-                  "'%s' PATH='%s' TYPE='%s'"%(line_num,identifier,path,tmp[1]))
+                  "'%s' PATH='%s' TYPE='%s'"%(line_num, identifier, path, tmp[1]))
                 continue
-
-            label = None if ( len(tmp) < 3 ) else ( tmp[2] or None )
-
-            _create_or_update_path( tobj, path, ptype, label )
+            label = None if (len(tmp) < 3) else (tmp[2] or None)
+            _create_or_update_path(tobj, path, ptype, label)
 
 
         # print final statistic
-
         to_total = self.to_found + self.to_create
         pi_total = self.pi_update + self.pi_create + self.pi_failure
+        self.print_msg("Tracked Objects created:  %d of %d"%(self.to_create, to_total))
+        self.print_msg("Path Items created:       %d of %d"%(self.pi_create, pi_total))
+        self.print_msg("Path Items updated:       %d of %d"%(self.pi_update, pi_total))
+        self.print_msg("Path Items failures:      %d of %d"%(self.pi_failure, pi_total))
 
-        self.print_msg("Tracked Objects created:  %d of %d"%(self.to_create,to_total))
-        self.print_msg("Path Items created:       %d of %d"%(self.pi_create,pi_total))
-        self.print_msg("Path Items updated:       %d of %d"%(self.pi_update,pi_total))
-        self.print_msg("Path Items failures:      %d of %d"%(self.pi_failure,pi_total))
-
-        if self.pi_failure > 0 :
+        if self.pi_failure > 0:
             raise CommandError("Errors encountered!")
+

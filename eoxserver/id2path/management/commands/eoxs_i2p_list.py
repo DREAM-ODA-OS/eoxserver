@@ -26,19 +26,14 @@
 #-------------------------------------------------------------------------------
 
 import sys
-import traceback
-
+#import traceback
 from optparse import make_option
-
 from django.core.management.base import BaseCommand, CommandError
 from django.core.paginator import Paginator
-
-#------------------------------------------------------------------------------
 from eoxserver.id2path.models import TrackedObject as TO
 from eoxserver.id2path.models import PathItem as PI
 #from eoxserver.id2path import models
 from eoxserver.resources.coverages.models import EOObject
-
 from eoxserver.resources.coverages.management.commands import CommandOutputMixIn
 
 #------------------------------------------------------------------------------
@@ -49,22 +44,17 @@ def filter_dummy(selection):
     return selection
 
 def _get_bound_ids(selection):
-
     # get list of identifiers
     ids_all = [item.identifier for item in selection]
-
     #TODO: find a better way to filter the unbound items
     # get list of bound ids
     eoobj = EOObject.objects.filter(identifier__in=ids_all)
     ids_bound = [item.identifier for item in eoobj]
-
     return ids_bound
 
 def filter_unbound(selection):
     """ filter unbound items """
-
     ids_bound = _get_bound_ids(selection)
-
     # proceed with the filtering
     for item in selection:
         if item.identifier not in ids_bound:
@@ -72,15 +62,12 @@ def filter_unbound(selection):
 
 def all_unbound(selection):
     """ check whether all items are unbound """
-
     ids_bound = _get_bound_ids(selection)
-
     return len(ids_bound) == 0
 
 
 def filter_empty(selection):
     """ filter items having no path items registered """
-
     for item in selection:
         if item.paths.count() == 0:
             yield item
@@ -158,9 +145,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         list_unbound = bool(options.get('list_unbound'))
         list_unbound_strict = bool(options.get('list_unbound_strict'))
         list_empty = bool(options.get('list_empty'))
-
         identifier = options.get('identifier', None)
-
         list_unbound = (list_unbound or list_unbound_strict)
 
         if list_unbound and list_empty:
@@ -171,59 +156,40 @@ class Command(CommandOutputMixIn, BaseCommand):
         # object generators
 
         def _get_all_objects():
-            # pagination limit
-            nitems = 256
-
-            # list identifiers
+            nitems = 256 # pagination limit
             selection = TO.objects.all()
             selection = selection.prefetch_related('paths')
             paginator = Paginator(selection, nitems)
-
             _filter = filter_dummy
             if list_empty:
                 _filter = filter_empty
             elif list_unbound:
                 _filter = filter_unbound
-
-            # iterate over the pages
             for i in xrange(paginator.num_pages):
                 for item in _filter(paginator.page(i+1)):
                     yield item
 
-
         def _get_selected_object():
-
             yield TO.objects.get(identifier=identifier)
 
-
         def _check_if_unbound_path(path, exlude_tobj=None):
-
-            # get the owners
             qset = path.owners.all()
             if exlude_tobj is not None:
                 qset = qset.exclude(id=exlude_tobj.id)
-
-            # check whether all of them are unbound
             if not all_unbound(qset):
                 return False
-
-            # is item a directory?
             if path.type != path.DIRECTORY:
                 # no - it is a file
                 return True
-
             else:
                 # yes - it is a directory
-
                 # find path items contaning this directory
                 qset2 = PI.objects.exclude(id=path.id)
                 qset2 = qset2.filter(path__startswith=path.path)
-
                 # if any of them bound set this item as bound as well
                 for item in qset2:
                     if not _check_if_unbound_path(item):
                         return False
-
                 return True
 
         #----------------------------------------------------------------------
@@ -236,7 +202,7 @@ class Command(CommandOutputMixIn, BaseCommand):
             fid.write("#%s\n"%(item.identifier))
             for path in item.paths.all():
                 if (not list_unbound_strict) or _check_if_unbound_path(path, item):
-                    items = [ path.path, path.typeAsStr ] 
+                    items = [path.path, path.type_as_str]
                     if path.label:
                         items.append(path.label)
                     fid.write("%s\n"%(";".join(items)))

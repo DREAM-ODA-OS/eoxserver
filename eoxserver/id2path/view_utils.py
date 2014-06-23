@@ -27,16 +27,12 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-from django.http import HttpResponse
-
 import ipaddr
-
-#-------------------------------------------------------------------------------
+from django.http import HttpResponse
 
 class HttpError(Exception):
     """ Simple HTTP error exception """
-
-    def __init__(self, status, message) :
+    def __init__(self, status, message):
         Exception.__init__(self, message)
         self.status = status
         self.message = message
@@ -44,94 +40,65 @@ class HttpError(Exception):
     def __unicode__(self):
         return "%d %s"%(self.status, self.message)
 
-#-------------------------------------------------------------------------------
-# view wrappers
 
 def error_handler(view):
     """ error handling decorator """
-
     def _wrapper_(request):
-
         try:
             return view(request)
-
-        except HttpError as ex :
-            response =  HttpResponse(unicode(ex), content_type="text/plain")
+        except HttpError as ex:
+            response = HttpResponse(unicode(ex), content_type="text/plain")
             response.status_code = ex.status
             return response
-
     _wrapper_.__name__ = view.__name__
     _wrapper_.__doc__ = view.__doc__
-
     return _wrapper_
 
-#-------------------------------------------------------------------------------
 
 def method_allow(method_list):
     """ reject non-supported HTTP methods """
-
-    def _wrap_(view) :
+    def _wrap_(view):
         def _wrapper_(request):
-
-            if request.method not in method_list :
+            if request.method not in method_list:
                 raise HttpError(405, "Error: Method not supported!"
                                             " METHOD='%s'"%request.method)
             return view(request)
-
         _wrapper_.__name__ = view.__name__
         _wrapper_.__doc__ = view.__doc__
-
         return _wrapper_
     return _wrap_
 
-#-------------------------------------------------------------------------------
 
 def ip_deny(ip_list):
     """ IP black-list restricted access """
-
-    def _wrap_(view) :
+    def _wrap_(view):
         def _wrapper_(request):
-
-            # request source address
+            # get request source address and compare it with the forbiden ones
             ip_src = ipaddr.IPAddress(request.META['REMOTE_ADDR'])
-
-            # loop over the allowed addresses
-            for ip in ip_list :
-                if ip_src in ipaddr.IPNetwork(ip) :
+            for ip_ in ip_list:
+                if ip_src in ipaddr.IPNetwork(ip_):
                     raise HttpError(403, "Forbiden!")
-
             return view(request)
-
         _wrapper_.__name__ = view.__name__
         _wrapper_.__doc__ = view.__doc__
-
         return _wrapper_
     return _wrap_
 
-#-------------------------------------------------------------------------------
 
 def ip_allow(ip_list):
     """ IP white-list restricted access """
-
-    def _wrap_(view) :
+    def _wrap_(view):
         def _wrapper_(request):
-
-            # request source address
+            # get request source address and compare it with the allowed ones
             ip_src = ipaddr.IPAddress(request.META['REMOTE_ADDR'])
-
-            # loop over the allowed addresses
-            for ip in ip_list :
-                if ip_src in ipaddr.IPNetwork(ip) :
+            for ip_ in ip_list:
+                if ip_src in ipaddr.IPNetwork(ip_):
                     break
-            else :
+            else:
                 raise HttpError(403, "Forbiden!")
-
             return view(request)
-
         _wrapper_.__name__ = view.__name__
         _wrapper_.__doc__ = view.__doc__
-
         return _wrapper_
     return _wrap_
 
-#-------------------------------------------------------------------------------

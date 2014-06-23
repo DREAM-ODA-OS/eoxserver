@@ -27,21 +27,13 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-import logging
-
 from django.db import models
-
-logger = logging.getLogger(__name__)
-
-#-------------------------------------------------------------------------------
 
 class TrackedObject(models.Model):
     """ tracked object """
-
-    time_created = models.DateTimeField("Created",auto_now_add=True)
-    time_updated = models.DateTimeField("Last update",auto_now=True)
-
-    identifier = models.CharField(max_length=256,unique=True,db_index=True)
+    time_created = models.DateTimeField("Created", auto_now_add=True)
+    time_updated = models.DateTimeField("Last update", auto_now=True)
+    identifier = models.CharField(max_length=256, unique=True, db_index=True)
 
     def __unicode__(self):
         return self.identifier
@@ -50,59 +42,51 @@ class TrackedObject(models.Model):
         verbose_name = "Tracked Object"
         verbose_name_plural = "Tracked Objects"
 
-#-------------------------------------------------------------------------------
 
 class PathItem(models.Model):
     """ path class - keep the shared the base and the specific relative part
     separate"""
-
     # EOP allowed mask types
-    FILE=1              # a file without any specific meaning
-    RAWDATA=3           # raw image data
-    METADATA=5          # metadata
-    RAW_AND_METADATA=7  # data and metadata in one file
-    RASTER_MASK=11      # raster mask
-    VECTOR_MASK=13      # vector mask
-    BROWSE=15           # browse image
-    DIRECTORY=128       # directory
+    FILE = 1              # a file without any specific meaning
+    RAWDATA = 3           # raw image data
+    METADATA = 5          # metadata
+    RAW_AND_METADATA = 7  # data and metadata in one file
+    RASTER_MASK = 11      # raster mask
+    VECTOR_MASK = 13      # vector mask
+    BROWSE = 15           # browse image
+    DIRECTORY = 128       # directory
 
     TYPE_CHOICES = (
-        ( FILE, "file" ),
-        ( RAWDATA, "data" ),
-        ( METADATA, "metadata" ),
-        ( RAW_AND_METADATA, "data+metadata" ),
-        ( RASTER_MASK, "raster-mask" ),
-        ( VECTOR_MASK, "vector-mask" ),
-        ( BROWSE, "browse" ),
-        ( DIRECTORY, "directory" ),
+        (FILE, "file"),
+        (RAWDATA, "data"),
+        (METADATA, "metadata"),
+        (RAW_AND_METADATA, "data+metadata"),
+        (RASTER_MASK, "raster-mask"),
+        (VECTOR_MASK, "vector-mask"),
+        (BROWSE, "browse"),
+        (DIRECTORY, "directory"),
     )
 
-    TYPE_STRINGS= tuple( v for k,v in TYPE_CHOICES )
-    TYPE2STR = dict( TYPE_CHOICES )
-    STR2TYPE = dict( (((v,k) for k,v in TYPE_CHOICES)) )
+    TYPE_STRINGS = tuple(v for k, v in TYPE_CHOICES)
+    TYPE2STR = dict(TYPE_CHOICES)
+    STR2TYPE = dict((((v, k) for k, v in TYPE_CHOICES)))
 
-    type = models.PositiveSmallIntegerField( choices=TYPE_CHOICES,
-                                            blank=False, null=False )
-
-    time_created = models.DateTimeField("Created",auto_now_add=True)
-    time_updated = models.DateTimeField("Last update",auto_now=True)
-
-    path  = models.CharField(max_length=1024,unique=True,db_index=True)
-    label = models.CharField(max_length=64,blank=True,null=True)
-
-    #owner = models.ForeignKey(TrackedObject,related_name="paths")
-    owners = models.ManyToManyField(TrackedObject,related_name="paths")
+    type = models.PositiveSmallIntegerField(choices=TYPE_CHOICES)
+    time_created = models.DateTimeField("Created", auto_now_add=True)
+    time_updated = models.DateTimeField("Last update", auto_now=True)
+    path = models.CharField(max_length=1024, unique=True, db_index=True)
+    label = models.CharField(max_length=64, blank=True, null=True)
+    owners = models.ManyToManyField(TrackedObject, related_name="paths")
 
     @property
-    def typeAsStr( self ):
+    def type_as_str(self):
         return self.TYPE2STR[self.type]
 
     def __unicode__(self):
         return self.path
 
     class Meta:
-        #unique_together = ( 'path' , 'owner' )
+        #unique_together = ('path', 'owner')
         verbose_name = "Path Item"
         verbose_name_plural = "Path Items"
 
-#-------------------------------------------------------------------------------
