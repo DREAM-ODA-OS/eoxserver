@@ -30,15 +30,24 @@
 import json
 from django.conf import settings
 from django.http import HttpResponse
+from django.core.exceptions import ObjectDoesNotExist
 
 from eoxserver.id2path.models import TrackedObject as TO
 from eoxserver.id2path.models import PathItem as PI
 from eoxserver.id2path.view_utils import (HttpError, error_handler,
     method_allow, ip_allow, ip_deny)
+from eoxserver.resources.coverages.models import (RectifiedDataset,
+    ReferenceableDataset)
 
 # JSON formating options
 #JSON_OPTS={}
 JSON_OPTS = {'sort_keys': True, 'indent': 4, 'separators': (',', ': ')}
+
+ALLOWED_KEYS = ("id", "filter", "coveragetype")
+COV_TYPES = {
+    "RectifiedDataset": RectifiedDataset,
+    "ReferenceableDataset": ReferenceableDataset,
+}
 
 
 @error_handler                            # top error handler
@@ -49,11 +58,10 @@ def id2path(request):
     """ id2path view handler """
 
     # check the query string
-    allowed_keys = ("id", "filter")
     inputs = []
     for key, values in request.GET.lists():
         key = key.lower()
-        if key.lower() not in allowed_keys:
+        if key.lower() not in ALLOWED_KEYS:
             raise HttpError(400, "Error: Bad request! Invalid key! KEY='%s'"%key)
         if len(values) > 1:
             raise HttpError(400, "Error: Bad request! Repeated key! KEY='%s'"%key)
@@ -63,19 +71,28 @@ def id2path(request):
     # check the inputs
     identifier = inputs.get("id", None)
     filters = inputs.get("filter", None)
+    cov_type = inputs.get("coveragetype", None)
 
     if (identifier is None) and (filters is None):
         # return service signature if no input provided
         output = {"service": "id2path", "version": "1.0"}
-        return HttpResponse(json.dumps(output, **JSON_OPTS),
-                                          content_type="application/json")
+        return HttpResponse(json.dumps(output, **JSON_OPTS), content_type="application/json")
 
     # find the tracked object matching the input identifier
     try:
         obj = TO.objects.get(identifier=identifier)
     except TO.DoesNotExist:
-        raise HttpError(404, "Error: Record not found! Invalid"
-                                " identifier! IDENTIFIER='%s'"%identifier)
+        raise HttpError(404, "Error: Record not found! Invalid identifier %r!"%identifier)
+
+    # check the coverage type
+    if cov_type is not None:
+        try:
+            COV_TYPES[cov_type].objects.get(identifier=identifier)
+        except KeyError:
+            raise HttpError(400, "Error: Unsupported coverage type %r!"%cov_type)
+        except ObjectDoesNotExist:
+            raise HttpError(404, "Error: No record found for the given coverage"
+                " type %r and identifier %r!"%(cov_type, identifier))
 
     # check the filters
     filters = filters.split(',') if (filters is not None) else []
@@ -100,6 +117,5 @@ def id2path(request):
             item["label"] = path.label
         path_list.append(item)
 
-    return HttpResponse(json.dumps(path_list, **JSON_OPTS),
-                                               content_type="application/json")
+    return HttpResponse(json.dumps(path_list, **JSON_OPTS), content_type="application/json")
 
