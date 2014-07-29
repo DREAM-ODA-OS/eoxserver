@@ -27,71 +27,84 @@
 
 import csv
 from datetime import datetime
-from StringIO import StringIO
 
 from eoxserver.core import Component, implements
 from eoxserver.core.util.timetools import isoformat
 
 from eoxserver.services.ows.wps.interfaces import ProcessInterface
-from eoxserver.services.ows.wps.parameters import LiteralData, ComplexData
-from eoxserver.services.ows.wps.exceptions import InvalidInputException
+from eoxserver.services.ows.wps.parameters import (
+    LiteralData, ComplexData, CDTextBuffer, CDAsciiTextBuffer, FormatText
+)
+from eoxserver.services.ows.wps.exceptions import InvalidInputValueError
 
 from eoxserver.resources.coverages import models
 
 class GetTimeDataProcess(Component):
-    """ GetTimeDataProcess defines a WPS process needed by the EOxClient 
+    """ GetTimeDataProcess defines a WPS process needed by the EOxClient
         time-slider componenet """
 
     implements(ProcessInterface)
 
     identifier = "getTimeData"
-    title = "Retrieves time information about a collection"
-    description = "Creates csv output of coverage time information of collections."
-    metadata = [] 
+    title = "Get times of collection coverages."
+    decription = "Query collection and get list of coverages and their times" \
+            " and spatial extents. The process is used by the time-slider " \
+            " of the EOxClient (web client)."
+    metadata = {}
     profiles = ['EOxServer:GetTimeData']
 
     inputs = {
-        "collection": str,
-        "begin_time": LiteralData("begin_time",datetime,optional=True),
-        "end_time": LiteralData("end_time",datetime,optional=True),
+        "collection": LiteralData("collection",
+            title="Collection name (a.k.a. dataset-series identifier)."),
+        "begin_time": LiteralData("begin_time", datetime, optional=True,
+            title="Optional start of the time interval."),
+        "end_time": LiteralData("end_time", datetime, optional=True,
+            title="Optional end of the time interval."),
     }
 
     outputs = {
-        "times": str
+        "times": ComplexData("times",
+                    formats=(FormatText('text/csv'), FormatText('text/plain')),
+                    title="Comma separated list of collection's coverages,"\
+                            " their extents and times.",
+                    abstract="NOTE: The use of the 'text/plain' format is "\
+                               "deprecated! This format will be removed!'"
+                )
     }
 
-    def execute(self, collection, begin_time, end_time):
+    @staticmethod
+    def execute(collection, begin_time, end_time, **kwarg):
         """ The main execution function for the process.
         """
 
         # get the dataset series matching the requested ID
-        try: 
-            series = models.DatasetSeries.objects.get( identifier = collection )
-        except models.DatasetSeries.DoesNotExist :
-            raise InvalidInputException( "Invalid collection name '%s' !"%collection ) 
+        try:
+            series = models.DatasetSeries.objects.get(identifier=collection)
+        except models.DatasetSeries.DoesNotExist:
+            raise InvalidInputValueError("collection", "Invalid collection name '%s'!"%collection)
 
-        # recursive dataset series lookup 
-        def _get_children_ids( ds ): 
-            ds_rct= ds.real_content_type 
-            id_list = [ ds.id ] 
-            for child in series.eo_objects.filter(real_content_type=ds_rct) :
-                id_list.extend( _get_children_ids( child ) ) 
-            return id_list 
+        # recursive dataset series lookup
+        def _get_children_ids(ds):
+            ds_rct = ds.real_content_type
+            id_list = [ds.id]
+            for child in series.eo_objects.filter(real_content_type=ds_rct):
+                id_list.extend(_get_children_ids(child))
+            return id_list
 
-        series_ids = _get_children_ids( series ) 
+        series_ids = _get_children_ids(series)
 
-        # prepare coverage query set 
+        # prepare coverage query set
         coverages_qs = models.Coverage.objects.filter(collections__id__in=series_ids)
-        if end_time is not None : 
-            coverages_qs = coverages_qs.filter(begin_time__lte = end_time ) 
-        if begin_time is not None : 
-            coverages_qs = coverages_qs.filter(end_time__gte = begin_time ) 
-        coverages_qs = coverages_qs.order_by('begin_time','end_time') 
+        if end_time is not None:
+            coverages_qs = coverages_qs.filter(begin_time__lte=end_time)
+        if begin_time is not None:
+            coverages_qs = coverages_qs.filter(end_time__gte=begin_time)
+        coverages_qs = coverages_qs.order_by('begin_time', 'end_time')
 
-        # create the output 
-        output = StringIO()
+        # create the output
+        output = CDAsciiTextBuffer()
         writer = csv.writer(output, quoting=csv.QUOTE_ALL)
-        header = ["starttime", "endtime", "bbox", "identifier" ]
+        header = ["starttime", "endtime", "bbox", "identifier"]
         writer.writerow(header)
 
         for coverage in coverages_qs:
@@ -101,6 +114,4 @@ class GetTimeDataProcess(Component):
             bbox = coverage.extent_wgs84
             writer.writerow([isoformat(starttime), isoformat(endtime), bbox, identifier])
 
-        return output.getvalue()
-        
-
+        return output

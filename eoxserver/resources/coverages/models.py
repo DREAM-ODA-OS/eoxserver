@@ -153,9 +153,11 @@ class EOMetadata(models.Model):
     class Meta:
         abstract = True
 
+
 class DataSource(backends.Dataset):
     pattern = models.CharField(max_length=32, null=False, blank=False)
     collection = models.ForeignKey("Collection")
+
 
 #===============================================================================
 # Base class EOObject
@@ -287,7 +289,7 @@ class NilValueSet(models.Model):
     """ Collection model for nil values.
     """
 
-    name = models.CharField(max_length=64)
+    name = models.CharField(max_length=512)
     data_type = models.PositiveIntegerField()
 
     def __init__(self, *args, **kwargs):
@@ -334,8 +336,8 @@ class NilValue(models.Model):
     """ Single nil value contributing to a nil value set. 
     """
 
-    raw_value = models.CharField(max_length=64, help_text="The string representation of the nil value.")
-    reason = models.CharField(max_length=64, null=False, blank=False, choices=NIL_VALUE_CHOICES, help_text="A string identifier (commonly a URI or URL) for the reason of this nil value.")
+    raw_value = models.CharField(max_length=512, help_text="The string representation of the nil value.")
+    reason = models.CharField(max_length=512, null=False, blank=False, choices=NIL_VALUE_CHOICES, help_text="A string identifier (commonly a URI or URL) for the reason of this nil value.")
     
     nil_value_set = models.ForeignKey(NilValueSet, related_name="nil_values")
 
@@ -407,7 +409,7 @@ class RangeType(models.Model):
     """ Collection model for bands.
     """
 
-    name = models.CharField(max_length=256, null=False, blank=False, unique=True)
+    name = models.CharField(max_length=512, null=False, blank=False, unique=True)
 
 
     def __init__(self, *args, **kwargs):
@@ -441,10 +443,10 @@ class Band(models.Model):
     """
 
     index = models.PositiveSmallIntegerField()
-    name = models.CharField(max_length=256, null=False, blank=False)
-    identifier = models.CharField(max_length=256, null=False, blank=False)
+    name = models.CharField(max_length=512, null=False, blank=False)
+    identifier = models.CharField(max_length=512, null=False, blank=False)
     description = models.TextField(null=True, blank=True)
-    definition = models.CharField(max_length=256, null=True, blank=True)
+    definition = models.CharField(max_length=512, null=True, blank=True)
     uom = models.CharField(max_length=64, null=False, blank=False)
     
     # GDAL specific
@@ -453,10 +455,7 @@ class Band(models.Model):
 
     range_type = models.ForeignKey(RangeType, related_name="bands", null=False, blank=False)
     nil_value_set = models.ForeignKey(NilValueSet, null=True, blank=True)
-
-
-    def __unicode__(self):
-        return self.name
+    
 
     def clean(self):
         nil_value_set = self.nil_value_set
@@ -808,7 +807,6 @@ class VectorMask(models.Model):
     """ Vector Mask metadata 
         NOTE: Geometry shall always be stored in the WGS84 lat/lon coordinates!
     """
-
     # EOP allowed mask types 
     CLOUD=1
     SNOW=2 
@@ -822,15 +820,10 @@ class VectorMask(models.Model):
 
     type = models.PositiveSmallIntegerField( choices=TYPE_CHOICES,
                                             blank=False, null=False ) 
-
     subtype = models.CharField(max_length=64,blank=True, null=True)
-
     semantic = models.CharField(max_length=64,blank=True, null=True)
-
     geometry = models.MultiPolygonField(null=False, blank=False, srid=4326)
-
     objects = models.GeoManager()
-
     coverage = models.ForeignKey( Coverage, related_name='vector_masks' ) 
     
     def __unicode__(self):

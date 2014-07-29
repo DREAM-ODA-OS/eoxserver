@@ -2,6 +2,7 @@
 #
 # Project: EOxServer <http://eoxserver.org>
 # Authors: Martin Paces <martin.paces@eox.at>
+#          Fabian Schindler <fabian.schindler@eox.at>
 #
 #-------------------------------------------------------------------------------
 # Copyright (C) 2014 EOX IT Services GmbH
@@ -25,20 +26,13 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
-import traceback
 from optparse import make_option
 
-from django.core.exceptions import ValidationError
 from django.core.management.base import CommandError, BaseCommand
-from django.utils.dateparse import parse_datetime
-from django.db import transaction
-from django.contrib.gis.geos import GEOSGeometry
 
+from eoxserver.resources.coverages import models
 from eoxserver.resources.coverages.management.commands import (
-    CommandOutputMixIn, _variable_args_cb
-)
-from eoxserver.resources.coverages.models import (
-    ReferenceableDataset, RectifiedDataset, EOObject
+    CommandOutputMixIn, _variable_args_cb, nested_commit_on_success
 )
 
 
@@ -46,41 +40,34 @@ class Command(CommandOutputMixIn, BaseCommand):
 
     args = "<identifier> [<identifier> ...]"
     
-    help = (
-    """ Deregister a Dataset.  
-    """ % ({"name": __name__.split(".")[-1]}))
+    help = "Deregister on or more Datasets."
 
+    @nested_commit_on_success
+    def handle(self, *identifiers, **kwargs):
+        if not identifiers: 
+            raise CommandError("Missing the mandatory dataset identifier(s).")
 
-    @transaction.commit_on_success
-    def handle(self, *args, **opt):
-        # check required identifier 
-        if not args: 
-            raise CommandError("Missing the mandatory dataset identifier(s)!")
-
-        for identifier in args:
+        for identifier in identifiers:
             self.print_msg("Deleting Dataset: '%s'" % (identifier))
             try:
                 # locate coverage an check the type 
-                dataset = EOObject.objects.get(identifier=identifier).cast()
+                coverage = models.Coverage.objects.get(
+                    identifier=identifier
+                ).cast()
 
-                if dataset.real_type not in (RectifiedDataset, ReferenceableDataset): 
-                    raise EOObject.DoesNotExist
                 # final removal
-                dataset.delete()
+                coverage.delete()
 
-            except EOObject.DoesNotExist: 
+            except models.Coverage.DoesNotExist: 
                 raise CommandError(
-                    "There is no dataset matching the givent identifier: '%s'"
+                    "No dataset is matching the given identifier: '%s'."
                     % identifier
                 )
 
             except Exception, e:
-                # print stack trace if required 
-                if opt.get("traceback", False):
-                    self.print_msg(traceback.format_exc())
-
+                self.print_traceback(e, kwargs)
                 raise CommandError(
-                    "Dataset deregistration failed! REASON=%s" % e
+                    "Dataset deregistration failed: %s" % e
                 )
 
         self.print_msg("Dataset deregistered sucessfully.") 
