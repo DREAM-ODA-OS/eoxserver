@@ -72,8 +72,8 @@ def layers2json(selection, json_opts=None):
                 "rectified": item.rectified,
             },
             "info": {
-                "id": "%s_outlines"%id_,
-                "protocol": "WMS",
+                "id": id_,
+                "protocol": "WPS",
                 "url": url,
             },
         }
