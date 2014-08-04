@@ -30,6 +30,7 @@ from eoxserver.contrib import mapserver as ms
 from eoxserver.services.mapserver.wms.layers.base import (
     LayerFactory, StyledLayerMixIn, PolygonLayerMixIn,
 )
+from django.contrib.gis.geos import MultiPolygon
 
 
 class CoverageOutlinesVisibleLayerFactory(LayerFactory, PolygonLayerMixIn, StyledLayerMixIn):
@@ -65,8 +66,8 @@ class CoverageOutlinesVisibleLayerFactory(LayerFactory, PolygonLayerMixIn, Style
 
             # update geometry accumulator
             accum = accum + self._outline_geom(cov)
-       
-        if count == 0: # add an empty feature if there is no applicable coverage 
+
+        if count == 0: # add an empty feature if there is no applicable coverage
             shape = ms.shapeObj()
             shape.initValues(1)
             shape.setValue(0, "__empty__")
