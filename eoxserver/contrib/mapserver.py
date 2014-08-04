@@ -97,14 +97,14 @@ def dispatch(map_, request):
     msIO_installStdoutToBuffer()
 
     # write the map if debug is enabled
-    if logger.isEnabledFor(logging.DEBUG):
-        fd, filename = tempfile.mkstemp(text=True)
-        try:
-            with os.fdopen(fd) as f:
-                map_.save(filename)
-                logger.debug(f.read())
-        finally:
-            os.remove(filename)
+#    if logger.isEnabledFor(logging.DEBUG):
+#        fd, filename = tempfile.mkstemp(text=True)
+#        try:
+#            with os.fdopen(fd) as f:
+#                map_.save(filename)
+#                logger.debug(f.read())
+#        finally:
+#            os.remove(filename)
     
     try:
         logger.debug("MapServer: Dispatching.")
