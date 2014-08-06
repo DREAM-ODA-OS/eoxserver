@@ -81,6 +81,9 @@ class Command(CommandOutputMixIn, BaseCommand):
                 self.print_msg(traceback.format_exc())
             raise CommandError("Failed to open the input file '%s' ! "
                                     "REASON: %s " % (filename, str(e)))
+    
+        if isinstance(rts, dict): # single range-type object
+            rts = [rts]
 
         # insert the range types to DB
         success_count = 0 # success counter - counts finished syncs
