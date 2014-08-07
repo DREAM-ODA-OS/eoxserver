@@ -50,10 +50,10 @@ class Command(CommandOutputMixIn, BaseCommand):
     Load rangetypes stored in JSON format from standard input (defualt) or from
     a file (-i option).
 
-    NOTE: This command is supports JSON formats produced by both the new
-          (>=v0.4) and old (<0.4) versions of the EOxServer.
+    NOTE: This command supports JSON formats produced by both the new
+          (>=v0.4) and the old (<0.4) versions of the EOxServer.
           It is thus possible to export range types from an older EOxServer
-          instances and import them to a new one.
+          instance and import them to a new one.
     """)
 
 
@@ -81,8 +81,9 @@ class Command(CommandOutputMixIn, BaseCommand):
                 self.print_msg(traceback.format_exc())
             raise CommandError("Failed to open the input file '%s' ! "
                                     "REASON: %s " % (filename, str(e)))
-    
-        if isinstance(rts, dict): # single range-type object
+
+        # allow single range-type objects
+        if isinstance(rts, dict):
             rts = [rts]
 
         # insert the range types to DB
