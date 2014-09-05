@@ -140,7 +140,6 @@ class Command(CommandOutputMixIn, BaseCommand):
 
     def handle(self, *args, **options):
         # Collect parameters
-        self.verbosity = int(options.get('verbosity', 1))
         full_dump = bool(options.get('full_dump'))
         list_unbound = bool(options.get('list_unbound'))
         list_unbound_strict = bool(options.get('list_unbound_strict'))
@@ -170,7 +169,10 @@ class Command(CommandOutputMixIn, BaseCommand):
                     yield item
 
         def _get_selected_object():
-            yield TO.objects.get(identifier=identifier)
+            try:
+                yield TO.objects.get(identifier=identifier)
+            except TO.DoesNotExist:
+                pass
 
         def _check_if_unbound_path(path, exlude_tobj=None):
             qset = path.owners.all()
