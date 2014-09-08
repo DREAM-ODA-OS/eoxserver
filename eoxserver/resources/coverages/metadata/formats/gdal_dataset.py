@@ -35,6 +35,7 @@ from eoxserver.resources.coverages.metadata.interfaces import (
 )
 from eoxserver.processing.gdal import reftools as rt
 from eoxserver.contrib import osr
+from eoxserver.resources.coverages.formats import getFormatRegistry
 
 
 def open_gdal(obj):
@@ -135,6 +136,11 @@ class GDALDatasetMetadataReader(Component):
 
         driver_metadata = driver.GetMetadata()
         frmt = driver_metadata.get("DMD_MIMETYPE")
+        if frmt is None:
+            _driver_name = "GDAL/" + driver.ShortName
+            _frmt = getFormatRegistry().getFormatsByDriver(_driver_name)
+            if _frmt:
+                frmt = _frmt[0].mimeType
         if frmt:
             values["format"] = frmt
 

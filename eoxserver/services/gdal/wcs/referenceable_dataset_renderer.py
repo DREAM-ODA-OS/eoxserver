@@ -10,8 +10,8 @@
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
-# copies of the Software, and to permit persons to whom the Software is 
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 #
 # The above copyright notice and this permission notice shall be included in all
@@ -27,10 +27,12 @@
 #-------------------------------------------------------------------------------
 
 
-from os.path import splitext, abspath
+from os import remove
+from os.path import splitext, abspath, join, exists, isfile
 from datetime import datetime
 from uuid import uuid4
 import logging
+from subprocess import call
 
 from django.contrib.gis.geos import GEOSGeometry
 
@@ -50,9 +52,20 @@ from eoxserver.services.exceptions import (
     RenderException, OperationNotSupportedException
 )
 from eoxserver.processing.gdal import reftools
+from eoxserver.resources.coverages.formats import getFormatRegistry
 
 
 logger = logging.getLogger(__name__)
+
+class WCSConfigReader(config.Reader):
+    section = "services.ows.wcs"
+    maxsize = config.Option(type=int, default=None)
+
+class SystemConfigReader(config.Reader):
+    section = "core.system"
+    path_temp = config.Option(type=str, default=None)
+    path_beam = config.Option(type=str, default=None)
+    beam_options = config.Option(type=str, default='')
 
 
 class GDALReferenceableDatasetRenderer(Component):
@@ -75,25 +88,36 @@ class GDALReferenceableDatasetRenderer(Component):
 
         subsets = params.subsets
 
-        # GDAL source dataset. Either a single file dataset or a composed VRT 
+        # GDAL source dataset. Either a single file dataset or a composed VRT
         # dataset.
         src_ds = self.get_source_dataset(
             coverage, data_items, range_type
         )
 
-        # retrieve area of interest of the source image according to given 
+        # retrieve area of interest of the source image according to given
         # subsets
-        src_rect, dst_rect = self.get_source_and_dest_rect(src_ds, subsets)
+        src_rect, dst_rect = self.get_src_and_dst_rect(src_ds, subsets)
 
         # deduct "native" format of the source image
-        native_format = data_items[0].format if len(data_items) == 1 else None
+        def _src2nat(src_format):
+            if src_format is not None:
+                frmreg = getFormatRegistry()
+                f_src = frmreg.getFormatByMIME(src_format)
+                f_dst = frmreg.mapSourceToNativeWCS20(f_src)
+                if f_dst is not None:
+                    return f_dst.mimeType
+            return None
+
+        source_format = data_items[0].format if len(data_items) == 1 else None
+        native_format = _src2nat(source_format)
 
         # get the requested image format, which defaults to the native format
         # if available
-        frmt = params.format or native_format
+        output_format = params.format or native_format
 
-        if not frmt:
-            raise RenderException("No format specified.", "format")
+        if not output_format:
+            raise RenderException("Failed to deduce the native format of "
+                "the coverage. Output format must be provided!", "format")
 
         if params.scalefactor is not None or params.scales:
             raise RenderException(
@@ -101,41 +125,85 @@ class GDALReferenceableDatasetRenderer(Component):
                 "scalefactor" if params.scalefactor is not None else "scale"
             )
 
+        # check it the requested image fits the max. allowed coverage size
         maxsize = WCSConfigReader(get_eoxserver_config()).maxsize
-        if maxsize < dst_rect.size_x or maxsize < dst_rect.size_y:              
-            raise RenderException(                                              
-                "Requested image size %dpx x %dpx exceeds the allowed "       
-                "limit maxsize=%dpx!" % (dst_rect.size_x,                     
-                dst_rect.size_y, maxsize), "size"                               
+        if maxsize < dst_rect.size_x or maxsize < dst_rect.size_y:
+            raise RenderException(
+                "Requested image size %dpx x %dpx exceeds the allowed "
+                "limit maxsize=%dpx!" % (dst_rect.size_x,
+                dst_rect.size_y, maxsize), "size"
             )
 
-        # perform subsetting either with or without rangesubsetting
-        subsetted_ds = self.perform_subset(
-            src_ds, range_type, src_rect, dst_rect, params.rangesubset
-        )
+        # get the output backend and driver for the requested format
+        def _get_driver(mime_src, mime_out):
+            """Select backend for the given source and output formats."""
+            # TODO: make this configurable
+            if mime_src == 'application/x-esa-envisat' and \
+               mime_out == 'application/x-netcdf':
+                return "BEAM", "NetCDF-CF"
 
-        # encode the processed dataset and save it to the filesystem
-        out_ds, out_driver = self.encode(
-            subsetted_ds, frmt, getattr(params, "encoding_params", {})
-        )
+            frmreg = getFormatRegistry()
+            fobj = frmreg.getFormatByMIME(mime_out)
+            backend, _, driver = fobj.driver.partition("/")
+            return backend, driver
 
-        driver_metadata = out_driver.GetMetadata_Dict()
-        mime_type = driver_metadata.get("DMD_MIMETYPE")
-        extension = driver_metadata.get("DMD_EXTENSION")
+        driver_backend, driver_name = _get_driver(source_format, output_format)
+
+        if driver_backend not in ("GDAL", "BEAM"):
+            raise RenderException("Invallid output format backend name %s!"
+                                  "" % driver_backend, "format")
+
+        # prepare output
+        # ---------------------------------------------------------------------
+        if driver_backend == "BEAM":
+
+            path_out, extension = self.encode_beam(
+                driver_name,
+                src_ds.GetFileList()[0],
+                src_rect,
+                getattr(params, "encoding_params", {})
+            )
+
+            mime_type = output_format
+            path_list = [path_out]
+
+        # ---------------------------------------------------------------------
+        elif driver_backend == "GDAL":
+
+            # get the output driver
+            driver = gdal.GetDriverByName(driver_name)
+            if driver is None:
+                raise RenderException("Unsupported GDAL driver %s!" % driver_name)
+
+            # perform subsetting either with or without rangesubsetting
+            subsetted_ds = self.get_subset(
+                src_ds, range_type, src_rect, dst_rect, params.rangesubset
+            )
+
+            # encode the processed dataset and save it to the filesystem
+            out_ds = self.encode(driver, subsetted_ds, output_format,
+                        getattr(params, "encoding_params", {}))
+
+            driver_metadata = driver.GetMetadata_Dict()
+            mime_type = driver_metadata.get("DMD_MIMETYPE")
+            extension = driver_metadata.get("DMD_EXTENSION")
+            path_list = out_ds.GetFileList()
+
+        # ---------------------------------------------------------------------
 
         time_stamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename_base = "%s_%s" % (coverage.identifier, time_stamp)
 
         result_set = [
             ResultFile(
-                path, mime_type, "%s.%s" % (filename_base, extension),
+                path_item, mime_type, "%s.%s" % (filename_base, extension),
                 ("cid:coverage/%s" % coverage.identifier) if i == 0 else None
-            ) for i, path in enumerate(out_ds.GetFileList())
+            ) for i, path_item in enumerate(path_list)
         ]
 
         if params.mediatype and params.mediatype.startswith("multipart"):
             reference = "cid:coverage/%s" % result_set[0].filename
-            
+
             if subsets.has_x and subsets.has_y:
                 footprint = GEOSGeometry(reftools.get_footprint_wkt(out_ds))
                 if not subsets.srid:
@@ -178,7 +246,7 @@ class GDALReferenceableDatasetRenderer(Component):
 
                 # iterate over all bands of the data item
                 for set_index, item_index in self._data_item_band_indices(data_item):
-                    if set_index != compound_index + 1: 
+                    if set_index != compound_index + 1:
                         raise ValueError
                     compound_index = set_index
 
@@ -191,7 +259,11 @@ class GDALReferenceableDatasetRenderer(Component):
             return vrt.dataset
 
 
-    def get_source_and_dest_rect(self, dataset, subsets):
+    @staticmethod
+    def get_src_and_dst_rect(dataset, subsets):
+        """ Get extent (pixel rectangle) of the source and destination
+        images matching the requested subsetting.
+        """
         size_x, size_y = dataset.RasterXSize, dataset.RasterYSize
         image_rect = Rect(0, 0, size_x, size_y)
 
@@ -224,14 +296,17 @@ class GDALReferenceableDatasetRenderer(Component):
         if not image_rect.intersects(subset_rect):
             raise RenderException("Subset outside coverage extent.", "subset")
 
-        src_rect = subset_rect #& image_rect # TODO: why no intersection??
-        dst_rect = src_rect - subset_rect.offset
+        src_rect = subset_rect & image_rect
+        dst_rect = src_rect - src_rect.offset
 
         return src_rect, dst_rect
 
 
-    def perform_subset(self, src_ds, range_type, subset_rect, dst_rect, 
-                       rangesubset=None):
+    @staticmethod
+    def get_subset(src_ds, range_type, subset_rect, dst_rect, rangesubset=None):
+        """ Get subset of the image (as GDAL dataset) matching the requsted
+            pixel rectangle.
+        """
         vrt = VRTBuilder(*subset_rect.size)
 
         input_bands = list(range_type)
@@ -255,16 +330,123 @@ class GDALReferenceableDatasetRenderer(Component):
         return vrt.dataset
 
 
-    def encode(self, dataset, frmt, encoding_params):
+    @staticmethod
+    def encode(driver, dataset, mime_type, encoding_params):
+        """ Encode (i.e., create) the output image and return the opened GDAL
+        dataset object.
+        """
+
+        # temporary filename
+        path_temp = SystemConfigReader(get_eoxserver_config()).path_temp
+        while True:
+            path = join(path_temp, "eoxs_tmp_%s" % uuid4().hex)
+            if not exists(path):
+                break
+
+        # parse the encoding options
         options = ()
-        if frmt == "image/tiff":
+        if mime_type == "image/tiff":
             options = _get_gtiff_options(**encoding_params)
 
-        args = [ ("%s=%s" % key, value) for key, value in options ]
+        args = [("%s=%s" % key, value) for key, value in options]
+        return driver.CreateCopy(path, dataset, True, args)
 
-        path = "/tmp/%s" % uuid4().hex
-        out_driver = gdal.GetDriverByName("GTiff")
-        return out_driver.CreateCopy(path, dataset, True, args), out_driver
+
+    @staticmethod
+    def encode_beam(driver_name, path_src, src_rect, encoding_params):
+
+        # get and check the location of the BEAM toolbox
+        sys_config = SystemConfigReader(get_eoxserver_config())
+        path_beam = sys_config.path_beam
+        beam_options = [f for f in sys_config.beam_options.split()]
+
+        if path_beam is None:
+            raise RenderException("Path to BEAM toolbox is not defined!", "config")
+
+        path_beam_gpt = join(path_beam, 'bin/gpt.sh')
+        if not isfile(path_beam_gpt):
+            raise RenderException("Invalid path to BEAM toolbox %s!" % repr(path_beam), "config")
+
+        # mime-type and output extenstion
+        if driver_name.startswith("NetCDF-"):
+            extension = ".nc"
+        elif driver_name.startswith("NetCDF4-"):
+            extension = ".nc4"
+        elif driver_name.startswith("GeoTIFF"):
+            extension = ".tif"
+        else:
+            extension = ""
+
+        # temporary filename
+        path_temp = SystemConfigReader(get_eoxserver_config()).path_temp
+        while True:
+            path_base = join(path_temp, "eoxs_tmp_%s" % uuid4().hex)
+            path_gpt = "%s%s"%(path_base, ".gpt")
+            path_data = "%s%s"%(path_base, extension)
+            if not exists(path_gpt) and not exists(path_data):
+                break
+
+        # BEAM graph generator
+        def _graph():
+            yield '<graph id="data_subset">'
+            yield '  <version>1.0</version> '
+            yield '  <node id="subsetter">'
+            yield '    <operator>Subset</operator>'
+            yield '    <sources>'
+            yield '      <sourceProduct>${INPUT}</sourceProduct>'
+            yield '    </sources>'
+            yield '    <parameters>'
+            yield '      <region>'
+            yield '        <x>%d</x>' % src_rect.offset_x
+            yield '        <y>%d</y>' % src_rect.offset_y
+            yield '        <width>%d</width>' % src_rect.size_x
+            yield '        <height>%d</height>' % src_rect.size_y
+            yield '      </region>'
+            yield '    </parameters>'
+            yield '  </node>'
+            yield '  <node id="writer">'
+            yield '    <operator>Write</operator>'
+            yield '    <sources>'
+            yield '      <source>subsetter</source>'
+            yield '    </sources>'
+            yield '    <parameters>'
+            yield '      <file>${OUTPUT}</file>'
+            yield '      <formatName>%s</formatName>' % driver_name
+            yield '      <deleteOutputOnFailure>true</deleteOutputOnFailure>'
+            yield '      <writeEntireTileRows>false</writeEntireTileRows>'
+            yield '      <clearCacheAfterRowWrite>true</clearCacheAfterRowWrite>'
+            yield '    </parameters>'
+            yield '  </node>'
+            yield '</graph>'
+
+        try:
+            with file(path_gpt, "w") as fid:
+                for item in _graph():
+                    logger.debug(item)
+                    fid.write(item)
+
+            beam_gpt_argv = [
+                    path_beam_gpt,
+                    path_gpt,
+                    '-SINPUT=%s' % path_src,
+                    '-POUTPUT=%s' % path_data
+                  ] + beam_options
+
+            logger.debug("%s", beam_gpt_argv)
+
+            if call(beam_gpt_argv):
+                raise RenderException("BEAM toolbox failed to generate the output!", "beam")
+
+        except:
+            if isfile(path_data):
+                remove(path_data)
+            raise
+
+        finally:
+            if isfile(path_gpt):
+                remove(path_gpt)
+
+        return path_data, extension
 
 
 def index_of(iterable, predicate, default=None, start=1):
@@ -278,8 +460,8 @@ def temp_vsimem_filename():
     return "/vsimem/%s" % uuid4().hex
 
 
-def _get_gtiff_options(compression=None, jpeg_quality=None, 
-                       predictor=None, interleave=None, tiling=False, 
+def _get_gtiff_options(compression=None, jpeg_quality=None,
+                       predictor=None, interleave=None, tiling=False,
                        tilewidth=None, tileheight=None):
 
     logger.info("Applying GeoTIFF parameters.")
@@ -309,6 +491,3 @@ def _get_gtiff_options(compression=None, jpeg_quality=None,
             yield ("BLOCKYSIZE", str(tileheight))
 
 
-class WCSConfigReader(config.Reader):
-    section = "services.ows.wcs"
-    maxsize = config.Option(type=int, default=None)
