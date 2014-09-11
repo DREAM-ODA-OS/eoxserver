@@ -369,11 +369,11 @@ class GDALReferenceableDatasetRenderer(Component):
 
         # mime-type and output extenstion
         if driver_name.startswith("NetCDF-"):
-            extension = ".nc"
+            extension = "nc"
         elif driver_name.startswith("NetCDF4-"):
-            extension = ".nc4"
+            extension = "nc4"
         elif driver_name.startswith("GeoTIFF"):
-            extension = ".tif"
+            extension = "tif"
         else:
             extension = ""
 
@@ -382,7 +382,7 @@ class GDALReferenceableDatasetRenderer(Component):
         while True:
             path_base = join(path_temp, "eoxs_tmp_%s" % uuid4().hex)
             path_gpt = "%s%s"%(path_base, ".gpt")
-            path_data = "%s%s"%(path_base, extension)
+            path_data = "%s%s"%(path_base, "."+extension)
             if not exists(path_gpt) and not exists(path_data):
                 break
 
