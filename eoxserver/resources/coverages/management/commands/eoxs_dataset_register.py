@@ -474,7 +474,7 @@ class Command(CommandOutputMixIn, BaseCommand):
         
     def _get_overrides(self, identifier=None, size=None, extent=None, 
                        begin_time=None, end_time=None, footprint=None, 
-                       projection=None, coverage_type=None, **kwargs):
+                       projection=None, srid=None, coverage_type=None, **kwargs):
 
         overrides = {}
 
@@ -517,6 +517,9 @@ class Command(CommandOutputMixIn, BaseCommand):
                 overrides["projection"] = int(projection)
             except ValueError:
                 overrides["projection"] = projection
+
+        if srid:
+            overrides["projection"] = int(srid)
 
         return overrides
 
