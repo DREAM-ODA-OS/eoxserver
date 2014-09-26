@@ -140,7 +140,7 @@ class GDALReferenceableDatasetRenderer(Component):
             # TODO: make this configurable
             if mime_src == 'application/x-esa-envisat' and \
                mime_out == 'application/x-netcdf':
-                return "BEAM", "NetCDF-CF"
+                return "BEAM", "NetCDF4-BEAM"
 
             frmreg = getFormatRegistry()
             fobj = frmreg.getFormatByMIME(mime_out)
