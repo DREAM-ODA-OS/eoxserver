@@ -282,7 +282,8 @@ class WCS20GetReferenceableCoverageHandler(BaseRequestHandler):
         if format_param is None:
 
             # map the source format to the native one 
-            format = getWCSNativeFormat( coverage.getData().getSourceFormat() )  
+            format = getWCSNativeFormat( coverage.getData().getSourceFormat() )
+            mime_type = format.mimeType
 
             format_options = [] 
 
