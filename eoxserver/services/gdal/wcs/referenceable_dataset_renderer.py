@@ -152,6 +152,8 @@ class GDALReferenceableDatasetRenderer(Component):
 
             frmreg = getFormatRegistry()
             fobj = frmreg.getFormatByMIME(mime_out)
+            if fobj is None:
+                raise RenderException("Invallid output format '%s'!"%mime_out, "format")
             backend, _, driver = fobj.driver.partition("/")
             return backend, driver
 
@@ -196,7 +198,7 @@ class GDALReferenceableDatasetRenderer(Component):
                 close=True,
             )]
 
-            subsets = Subsets() # reset all subsets
+            subsets = Subsets(()) # reset all subsets
 
         # ---------------------------------------------------------------------
         elif driver_backend == "GDAL":
