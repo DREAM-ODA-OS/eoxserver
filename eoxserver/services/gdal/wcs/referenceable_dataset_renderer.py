@@ -28,7 +28,7 @@
 
 
 from os import remove
-from os.path import splitext, abspath, join, exists, isfile
+from os.path import splitext, abspath, join, exists, isfile, basename
 from datetime import datetime
 from uuid import uuid4
 import logging
@@ -46,6 +46,8 @@ from eoxserver.contrib.vrt import VRTBuilder
 from eoxserver.resources.coverages import models
 from eoxserver.services.ows.version import Version
 from eoxserver.services.result import ResultFile, ResultBuffer
+from eoxserver.services.subset import Subsets
+from eoxserver.services.ows.wps.v10.encoders.execute_response_raw import ResultAlt
 from eoxserver.services.ows.wcs.interfaces import WCSCoverageRendererInterface
 from eoxserver.services.ows.wcs.v20.encoders import WCS20EOXMLEncoder
 from eoxserver.services.exceptions import (
@@ -100,13 +102,16 @@ class GDALReferenceableDatasetRenderer(Component):
 
         # deduct "native" format of the source image
         def _src2nat(src_format):
-            if src_format is not None:
-                frmreg = getFormatRegistry()
-                f_src = frmreg.getFormatByMIME(src_format)
-                f_dst = frmreg.mapSourceToNativeWCS20(f_src)
-                if f_dst is not None:
-                    return f_dst.mimeType
-            return None
+            if src_format is None:
+                return None
+            frmreg = getFormatRegistry()
+            f_src = frmreg.getFormatByMIME(src_format)
+            f_dst = frmreg.mapSourceToNativeWCS20(f_src)
+            f_nat = frmreg._mapSourceToNativeWCS20(f_src)
+            if src_format == 'application/x-esa-envisat' and f_src == f_nat:
+                return src_format
+            elif f_dst is not None:
+                return f_dst.mimeType
 
         source_format = data_items[0].format if len(data_items) == 1 else None
         native_format = _src2nat(source_format)
@@ -141,6 +146,9 @@ class GDALReferenceableDatasetRenderer(Component):
             if mime_src == 'application/x-esa-envisat' and \
                mime_out == 'application/x-netcdf':
                 return "BEAM", "NetCDF4-BEAM"
+            elif mime_src == 'application/x-esa-envisat' and \
+               mime_out == 'application/x-esa-envisat':
+                return "EOXS", "envisat"
 
             frmreg = getFormatRegistry()
             fobj = frmreg.getFormatByMIME(mime_out)
@@ -149,7 +157,7 @@ class GDALReferenceableDatasetRenderer(Component):
 
         driver_backend, driver_name = _get_driver(source_format, output_format)
 
-        if driver_backend not in ("GDAL", "BEAM"):
+        if driver_backend not in ("GDAL", "BEAM", "EOXS"):
             raise RenderException("Invallid output format backend name %s!"
                                   "" % driver_backend, "format")
 
@@ -166,6 +174,29 @@ class GDALReferenceableDatasetRenderer(Component):
 
             mime_type = output_format
             path_list = [path_out]
+
+            time_stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            filename_base = "%s_%s" % (coverage.identifier, time_stamp)
+
+            result_set = [
+                ResultFile(
+                    path_item, mime_type, "%s.%s" % (filename_base, extension),
+                    ("cid:coverage/%s" % coverage.identifier) if i == 0 else None
+                ) for i, path_item in enumerate(path_list)
+            ]
+
+        # ---------------------------------------------------------------------
+        elif driver_backend == "EOXS": #EOxServer native backend
+
+            result_set = [ResultAlt(
+                file(src_ds.GetFileList()[0]),
+                content_type=output_format,
+                filename=basename(src_ds.GetFileList()[0]),
+                identifier="cid:coverage/%s" % coverage.identifier,
+                close=True,
+            )]
+
+            subsets = Subsets() # reset all subsets
 
         # ---------------------------------------------------------------------
         elif driver_backend == "GDAL":
@@ -189,17 +220,17 @@ class GDALReferenceableDatasetRenderer(Component):
             extension = driver_metadata.get("DMD_EXTENSION")
             path_list = out_ds.GetFileList()
 
+            time_stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            filename_base = "%s_%s" % (coverage.identifier, time_stamp)
+
+            result_set = [
+                ResultFile(
+                    path_item, mime_type, "%s.%s" % (filename_base, extension),
+                    ("cid:coverage/%s" % coverage.identifier) if i == 0 else None
+                ) for i, path_item in enumerate(path_list)
+            ]
+
         # ---------------------------------------------------------------------
-
-        time_stamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename_base = "%s_%s" % (coverage.identifier, time_stamp)
-
-        result_set = [
-            ResultFile(
-                path_item, mime_type, "%s.%s" % (filename_base, extension),
-                ("cid:coverage/%s" % coverage.identifier) if i == 0 else None
-            ) for i, path_item in enumerate(path_list)
-        ]
 
         if params.mediatype and params.mediatype.startswith("multipart"):
             reference = "cid:coverage/%s" % result_set[0].filename
@@ -350,7 +381,6 @@ class GDALReferenceableDatasetRenderer(Component):
 
         args = [("%s=%s" % key, value) for key, value in options]
         return driver.CreateCopy(path, dataset, True, args)
-
 
     @staticmethod
     def encode_beam(driver_name, path_src, src_rect, encoding_params):

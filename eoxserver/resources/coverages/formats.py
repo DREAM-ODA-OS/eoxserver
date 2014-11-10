@@ -242,6 +242,8 @@ class FormatRegistry(object):
 
         return format 
 
+    def _mapSourceToNativeWCS20(self, format):
+        return self.__wcs20_format_mapping.get(format, format)
 
     def getDefaultNativeFormat(self):
         """ Get default nativeFormat as defined in section 'services.ows.wcs20'.
