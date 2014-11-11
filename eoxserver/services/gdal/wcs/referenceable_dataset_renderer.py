@@ -198,6 +198,7 @@ class GDALReferenceableDatasetRenderer(Component):
                 close=True,
             )]
 
+            mime_type = output_format
             subsets = Subsets(()) # reset all subsets
 
         # ---------------------------------------------------------------------
