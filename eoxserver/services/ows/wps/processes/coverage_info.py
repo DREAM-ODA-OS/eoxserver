@@ -63,11 +63,10 @@ def eop_extract(eop):
 
     md = {}
 
-    base = "//"+eop20("Footprint")+"/"+eop20("centerOf")+"/"
-    md["center"] = _text(eop, base+gml32("Point"))
-
+    md["center"] = _text(eop, '/'.join(('', '', eop20("Footprint"),
+        eop20("centerOf"), gml32("Point"), gml32("coordinates"))))
     if md["center"]:
-        md["center"] = [float(v) for v in md["center"].split(' ') if len(v)]
+        md["center"] = [float(v) for v in md["center"].strip().split() if len(v)]
 
     base = "//"+eop20("Platform")+"/"
     md["platformName"] = _text(eop, base+eop20("shortName"))
