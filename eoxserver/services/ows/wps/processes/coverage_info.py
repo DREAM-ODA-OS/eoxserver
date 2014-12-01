@@ -25,6 +25,7 @@
 # THE SOFTWARE.
 #-------------------------------------------------------------------------------
 
+from copy import deepcopy
 from lxml import etree
 from eoxserver.core.config import get_eoxserver_config
 from eoxserver.core.util.timetools import isoformat
@@ -33,10 +34,25 @@ from eoxserver.backends.access import retrieve
 # get the service URL
 URL = get_eoxserver_config().get("services.owscommon", "http_service_url")
 
+def html_escape(text):
+    ttable = (
+        #('&', '&amp;'),
+        ('<', '&lt;'),
+        ('>', '&gt;'),
+        ('"', '&quot;'),
+        ('\n', '<br>'),
+        (' ', '&nbsp;'),
+    )
+    for s, d in ttable:
+        text = text.replace(s, d)
+    return text
+
 def eop_extract(eop):
     """ Extract EOP metadata from a parsed lxml element-tree object. """
     #TODO: fix the parsing of derived profiles
 
+    def om20(name):
+        return "{http://www.opengis.net/om/2.0}%s"%name
     def eop20(name):
         return "{http://www.opengis.net/eop/2.0}%s"%name
     def opt20(name):
@@ -129,6 +145,16 @@ def eop_extract(eop):
         md["snowCovPercent"] = _text_uom(res, base+opt20("snowCoverPercentage"))
         md["snowCovAsConfidence"] = _text_uom(res, base+opt20("snowCoverPercentageAssessmentConfidence"))
         md["snowCovQuotationMode"] = _text_uom(res, base+opt20("snowCoverPercentageQuotationMode"))
+
+    # get all resultQuality elements
+    res_qd = []
+    for elm in eop.findall("//"+om20("resultQuality")):
+        if len(elm) > 0:
+            tmp = deepcopy(elm[0])
+            text = etree.tostring(tmp, pretty_print=True, encoding="utf-8")
+            text.strip()
+            res_qd.append("    %s"%text)
+    md["resultQuality"] = res_qd
 
     # filter out missing values
     md_out = {}
@@ -261,6 +287,11 @@ def cov2html(coverage):
             yield _md("snowCovAsConfidence", "assessment confidence:")
             yield _md("snowCovQuotationMode", "quotation mode:")
 
+        if len(md.get("resultQuality")) > 0:
+            yield _lb("Result Quality:")
+            for item in md.get("resultQuality", []):
+                text = html_escape(item)
+                yield '<tr><td colspan="2"><pre style="width:25em;overflow-x:scroll;">%s</pre></td></tr>'%text
 
     yield '<!DOCTYPE html>'
     yield '<html>'
