@@ -435,6 +435,7 @@ class GDALReferenceableDatasetRenderer(Component):
             yield '        <width>%d</width>' % src_rect.size_x
             yield '        <height>%d</height>' % src_rect.size_y
             yield '      </region>'
+            yield '      <copyMetadata>true</copyMetadata>'
             yield '    </parameters>'
             yield '  </node>'
             yield '  <node id="writer">'
